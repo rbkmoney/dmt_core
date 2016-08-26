@@ -59,7 +59,12 @@ cache_snapshot(Snapshot) ->
 
 -spec commit(dmt:commit()) -> ok.
 commit(Commit) ->
-    gen_server:call(?SERVER, {commit, Commit}).
+    case gen_server:call(?SERVER, {commit, Commit}) of
+        {ok, Snapshot} ->
+            Snapshot;
+        {error, integrity_check_failed} ->
+            throw(integrity_check_failed)
+    end.
 
 %%
 
@@ -92,12 +97,17 @@ handle_call({cache_snapshot, Snapshot}, _From, State) ->
     {reply, ok, State};
 handle_call({commit, #'Commit'{ops = Ops}}, _From, State) ->
     #'Snapshot'{version = Version, domain = Domain} = checkout({head, #'Head'{}}),
-    NewSnapshot = #'Snapshot'{
-        version = Version + 1,
-        domain = dmt_domain:apply_operations(Ops, Domain)
-    },
-    true = ets:insert(?TABLE, NewSnapshot),
-    {reply, NewSnapshot, State};
+    try
+        NewSnapshot = #'Snapshot'{
+            version = Version + 1,
+            domain = dmt_domain:apply_operations(Ops, Domain)
+        },
+        true = ets:insert(?TABLE, NewSnapshot),
+        {reply, {ok, NewSnapshot}, State}
+    catch
+        integrity_check_failed ->
+            {reply, {error, integrity_check_failed}, State}
+    end;
 handle_call(_Msg, _From, State) ->
     {noreply, State}.
 

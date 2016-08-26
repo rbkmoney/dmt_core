@@ -43,6 +43,7 @@ revert_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
 -spec insert(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 insert(Object, Domain) ->
     ObjectReference = get_ref(Object),
+    ok = check_refs(Object, Domain),
     case maps:find(ObjectReference, Domain) of
         error ->
             maps:put(ObjectReference, Object, Domain);
@@ -53,6 +54,7 @@ insert(Object, Domain) ->
 -spec update(dmt:domain_object(), dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 update(OldObject, NewObject, Domain) ->
     ObjectReference = get_ref(OldObject),
+    ok = check_refs(NewObject, Domain),
     case get_ref(NewObject) of
         ObjectReference ->
             case maps:find(ObjectReference, Domain) of
@@ -70,6 +72,7 @@ update(OldObject, NewObject, Domain) ->
 -spec delete(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 delete(Object, Domain) ->
     ObjectReference = get_ref(Object),
+    ok = check_no_refs(ObjectReference, Domain),
     case maps:find(ObjectReference, Domain) of
         {ok, Object} ->
             maps:remove(ObjectReference, Domain);
@@ -88,3 +91,62 @@ get_ref({Tag, {_Type, Ref, _Data}}) ->
 
 raise_conflict(Why) ->
     throw({conflict, Why}).
+
+%%TODO:elaborate
+-spec get_data(dmt:domain_object()) -> any().
+get_data({_Tag, {_Type, _Ref, Data}}) ->
+    Data.
+
+check_refs(DomainObject, Domain) ->
+    [_Type | Fields] = erlang:tuple_to_list(get_data(DomainObject)),
+    case lists:all(fun (Object) -> check_ref(Object, Domain) end, Fields) of
+        true ->
+            ok;
+        false ->
+            throw(integrity_check_failed)
+    end.
+
+check_ref(MaybeRef, Domain) ->
+    [Type | _Fields] = erlang:tuple_to_list(MaybeRef),
+    case is_reference_type(Type) of
+        {true, Tag} ->
+            object_exists({Tag, MaybeRef}, Domain);
+        false ->
+            true
+    end.
+
+object_exists(Ref, Domain) ->
+    case maps:find(Ref, Domain) of
+        {ok, _Object} ->
+            true;
+        error ->
+            false
+    end.
+
+
+check_no_refs({_Tag, Ref}, Domain) ->
+    case has_ref(Ref, [get_data(V) ||{_K, V} <- maps:to_list(Domain)]) of
+        true ->
+            throw(integrity_check_failed);
+        false ->
+            ok
+    end.
+
+has_ref(Ref, Struct) when is_tuple(Struct) ->
+    [_Type | Fields] = erlang:tuple_to_list(Struct),
+    lists:member(Ref, Fields);
+has_ref(Ref, List) when is_list(List) ->
+    lists:any(fun (Element) -> has_ref(Ref, Element) end, List);
+has_ref(Ref, Map) when is_map(Map) ->
+    has_ref(Ref, [V || {_K, V} <- maps:to_list(Map)]).
+
+is_reference_type(Type) ->
+    {struct, union, StructInfo} = dmt_domain_thrift:struct_info('Reference'),
+    is_reference_type(Type, StructInfo).
+
+is_reference_type(_Type, []) ->
+    false;
+is_reference_type(Type, [{_, _, {_, _, {_, Type}}, Tag, _} | _Rest]) ->
+    {true, Tag};
+is_reference_type(Type, [_ | Rest]) ->
+    is_reference_type(Type, Rest).
