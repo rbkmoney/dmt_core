@@ -1,6 +1,1 @@
-[{<<"genlib">>,
-  {git,"https://github.com/rbkmoney/genlib.git",
-       {ref,"66db7fe296465a875b6894eb5ac944c90f82f913"}},
-  0},
- {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.7">>},1},
- {<<"lager">>,{pkg,<<"lager">>,<<"3.0.2">>},0}].
+[].

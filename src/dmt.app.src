@@ -5,9 +5,7 @@
     {mod, {dmt, []}},
     {applications, [
         kernel,
-        stdlib,
-        lager,
-        genlib
+        stdlib
     ]},
     {modules, []},
     {maintainers, [
