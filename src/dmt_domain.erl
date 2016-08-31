@@ -12,21 +12,13 @@
 
 -spec new() ->
     dmt:domain().
-
 new() ->
     #{}.
 
 -spec get_object(dmt:object_ref(), dmt:domain()) ->
-    dmt:domain_object().
-
+    {ok, dmt:domain_object()} | error.
 get_object(ObjectReference, Domain) ->
-    case maps:find(ObjectReference, Domain) of
-        {ok, Object} ->
-            Object;
-        error ->
-            throw(object_not_found)
-    end.
-
+    maps:find(ObjectReference, Domain).
 
 -spec apply_operations([dmt:operation()], dmt:domain()) -> dmt:domain().
 apply_operations([], Domain) ->
@@ -48,35 +40,39 @@ revert_operations([{update, #'UpdateOp'{old_object = OldObject, new_object = New
 revert_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
     revert_operations(Rest, insert(Object, Domain)).
 
--spec insert(dmt:domain_object(), dmt:domain()) -> dmt:domain().
+-spec insert(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 insert(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:is_key(ObjectReference, Domain) of
         false ->
             maps:put(ObjectReference, Object, Domain);
         true ->
-            throw(object_already_exists)
+            throw({object_already_exists, ObjectReference})
     end.
 
--spec update(dmt:domain_object(), dmt:domain_object(), dmt:domain()) -> dmt:domain().
+-spec update(dmt:domain_object(), dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 update(OldObject, NewObject, Domain) ->
     ObjectReference = get_ref(OldObject),
-    ObjectReference = get_ref(NewObject),
-    case maps:find(ObjectReference, Domain) of
-        {ok, OldObject} ->
-            maps:put(ObjectReference, NewObject, Domain);
-        error ->
-            throw(object_not_found)
+    case get_ref(NewObject) of
+        ObjectReference ->
+            case maps:find(ObjectReference, Domain) of
+                {ok, OldObject} ->
+                    maps:put(ObjectReference, NewObject, Domain);
+                error ->
+                    throw({object_not_found, ObjectReference})
+            end;
+        NewObjectReference ->
+            throw({object_reference_mismatch, NewObjectReference})
     end.
 
--spec delete(dmt:domain_object(), dmt:domain()) -> dmt:domain().
+-spec delete(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 delete(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:find(ObjectReference, Domain) of
         {ok, Object} ->
             maps:remove(ObjectReference, Domain);
         error ->
-            throw(object_not_found)
+            throw({object_not_found, ObjectReference})
     end.
 
 %%TODO:elaborate
