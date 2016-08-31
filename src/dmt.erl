@@ -28,6 +28,9 @@
 -type domain() :: dmt_domain_thrift:'Domain'().
 -type domain_object() :: dmt_domain_thrift:'DomainObject'().
 
+-spec start(normal, any()) ->
+    {ok, pid()} | {error, any()}.
+
 start(_StartType, _Args) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -37,6 +40,9 @@ stop(_State) ->
     ok.
 
 %%
+
+-spec init([]) ->
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 
 init([]) ->
     Cache = #{id => dmt_cache, start => {dmt_cache, start_link, []}, restart => permanent},
