@@ -33,11 +33,11 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
--spec checkout_head() -> dmt:snapshot().
+-spec checkout_head() -> dmt:snapshot() | no_return().
 checkout_head() ->
     checkout({head, #'Head'{}}).
 
--spec checkout(dmt:ref()) -> dmt:snapshot().
+-spec checkout(dmt:ref()) -> dmt:snapshot() | no_return().
 checkout({head, #'Head'{}}) ->
     checkout({version, head()});
 checkout({version, Version}) ->
@@ -45,16 +45,17 @@ checkout({version, Version}) ->
         [Snapshot] ->
             Snapshot;
         [] ->
-            throw({version_not_found, Version})
+            throw(version_not_found)
     end.
 
 -spec cache(dmt:version(), dmt:history()) -> dmt:snapshot().
 cache(Version, History) ->
     gen_server:call(?SERVER, {cache, Version, History}).
 
--spec cache_snapshot(dmt:snapshot()) -> ok.
+-spec cache_snapshot(dmt:snapshot()) -> dmt:snapshot().
 cache_snapshot(Snapshot) ->
-    gen_server:call(?SERVER, {cache_snapshot, Snapshot}).
+    ok = gen_server:call(?SERVER, {cache_snapshot, Snapshot}),
+    Snapshot.
 
 -spec commit(dmt:commit()) -> ok.
 commit(Commit) ->
@@ -78,7 +79,6 @@ init(_) ->
         {keypos, #'Snapshot'.version}
     ],
     ?TABLE = ets:new(?TABLE, EtsOpts),
-    true = ets:insert(?TABLE, #'Snapshot'{version = 0, domain = #{}}),
     {ok, #state{}}.
 
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, term(), state()}.
@@ -119,13 +119,11 @@ code_change(_OldVsn, _State, _Extra) ->
 
 %% internal
 
--spec head() -> dmt:version().
+-spec head() -> dmt:version() | no_return().
 head() ->
     case ets:last(?TABLE) of
         '$end_of_table' ->
-            % #'Snapshot'{version = Version} = dmt_history:head(dmt_mg:get_history()),
-            % Version;
-            0;
+            throw(version_not_found);
         Version ->
             Version
     end.
