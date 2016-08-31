@@ -2,3 +2,6 @@
 	path = damsel
 	url = git@github.com:rbkmoney/damsel.git
 	branch = master
+[submodule "builtils"]
+	path = builtils
+	url = git@github.com:rbkmoney/build_utils.git

@@ -1,10 +1,24 @@
 REBAR := $(shell which rebar3 2>/dev/null || which ./rebar3)
-SUBMODULES = damsel
+SUBMODULES = damsel builtils
 SUBTARGETS = $(patsubst %,%/.git,$(SUBMODULES))
 
-.PHONY:  submodules rebar-update compile xref lint dialyze start devrel release clean distclean all
+UTILS_PATH := builtils
+TEMPLATES_PATH := .
+
+# Name of the service
+SERVICE_NAME := dmt_core
+
+# Build image tag to be used
+BUILD_IMAGE_TAG := 753126790c9ecd763840d9fe58507335af02b875
+
+CALL_ANYWHERE := all submodules rebar-update compile xref lint dialyze clean distclean
+CALL_W_CONTAINER := $(CALL_ANYWHERE)
 
 all: compile
+
+-include $(UTILS_PATH)/make_lib/utils_container.mk
+
+.PHONY: $(CALL_W_CONTAINER)
 
 $(SUBTARGETS): %/.git: %
 	git submodule update --init $<

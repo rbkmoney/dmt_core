@@ -1,21 +1,31 @@
 #!groovy
 
-// Args:
-// GitHub repo name
-// Jenkins agent label
-// Tracing artifacts to be stored alongside build logs
-// Optional: artifacts to cache between the builds
-pipeline("dmt_core", 'docker-host', "_build/") {
+build('dmt_core', 'docker-host') {
 
+  checkoutRepo()
+
+  runStage('compile') {
+    withGithubCredentials("submodule update --init")
+  }
+
+  def pipeDefault
+  runStage('load pipeline') {
+    env.JENKINS_LIB = "builtils/jenkins_lib"
+    pipeDefault = load("${env.JENKINS_LIB}/pipeDefault.groovy")
+  }
+
+  pipeDefault() {
     runStage('compile') {
-     sh 'make compile'
+      withGithubPrivkey {
+        sh 'make wc_compile'
+      }
     }
-
+    runStage('lint') {
+      sh 'make wc_lint'
+    }
     runStage('xref') {
-     sh 'make xref'
+      sh 'make wc_xref'
     }
+  }
 
-    runStage('dialyze') {
-     sh 'make dialyze'
-    }
 }
