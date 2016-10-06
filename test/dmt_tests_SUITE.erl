@@ -46,44 +46,47 @@ application_stop(App) ->
 %% tests
 -spec integrity(term()) -> term().
 integrity(_C) ->
-    integrity_check_failed   = (catch dmt_cache:commit(insert(dummy_link(<<"0">>, <<"0">>)))),
-    #'Snapshot'{version = 1} = (catch dmt_cache:commit(insert(dummy(<<"0">>)))),
-    #'Snapshot'{version = 2} = (catch dmt_cache:commit(insert(dummy_link(<<"0">>, <<"0">>)))),
-    integrity_check_failed   = (catch dmt_cache:commit(update(dummy_link(<<"0">>, <<"0">>), dummy_link(<<"0">>, <<"1">>)))),
-    #'Snapshot'{version = 3} = (catch dmt_cache:commit(insert(dummy(<<"1">>)))),
-    #'Snapshot'{version = 4} = (catch dmt_cache:commit(update(dummy_link(<<"0">>, <<"0">>), dummy_link(<<"0">>, <<"1">>)))),
-    integrity_check_failed   = (catch dmt_cache:commit(remove(dummy(<<"1">>)))),
-    #'Snapshot'{version = 5} = (catch dmt_cache:commit(remove(dummy_link(<<"0">>, <<"1">>)))),
-    #'Snapshot'{version = 6} = (catch dmt_cache:commit(remove(dummy(<<"1">>)))),
+    integrity_check_failed   = insert(dummy_link(<<"0">>, <<"0">>)),
+    #'Snapshot'{version = 1} = insert(dummy(<<"0">>)),
+    #'Snapshot'{version = 2} = insert(dummy_link(<<"0">>, <<"0">>)),
+    integrity_check_failed   = update(dummy_link(<<"0">>, <<"0">>), dummy_link(<<"0">>, <<"1">>)),
+    #'Snapshot'{version = 3} = insert(dummy(<<"1">>)),
+    #'Snapshot'{version = 4} = update(dummy_link(<<"0">>, <<"0">>), dummy_link(<<"0">>, <<"1">>)),
+    integrity_check_failed   = remove(dummy(<<"1">>)),
+    #'Snapshot'{version = 5} = remove(dummy_link(<<"0">>, <<"1">>)),
+    #'Snapshot'{version = 6} = remove(dummy(<<"1">>)),
     ok.
 
 insert(Object) ->
-    #'Commit'{
+    Commit = #'Commit'{
         ops = [
             {insert, #'InsertOp'{
                 object = Object
             }}
         ]
-    }.
+    },
+    (catch dmt_cache:commit(Commit)).
 
 update(OldObject, NewObject) ->
-    #'Commit'{
+    Commit = #'Commit'{
         ops = [
             {update, #'UpdateOp'{
                 old_object = OldObject,
                 new_object = NewObject
             }}
         ]
-    }.
+    },
+    (catch dmt_cache:commit(Commit)).
 
 remove(Object) ->
-    #'Commit'{
+    Commit = #'Commit'{
         ops = [
             {remove, #'RemoveOp'{
                 object = Object
             }}
         ]
-    }.
+    },
+    (catch dmt_cache:commit(Commit)).
 
 dummy(Id) ->
     {dummy, #'DummyObject'{

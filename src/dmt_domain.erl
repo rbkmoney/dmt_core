@@ -82,20 +82,38 @@ delete(Object, Domain) ->
             raise_conflict({object_not_found, Object})
     end.
 
-%%TODO:elaborate
 -spec get_ref(dmt:domain_object()) -> dmt:object_ref().
-get_ref({Tag, {_Type, Ref, _Data}}) ->
-    {Tag, Ref}.
+get_ref({Tag, Struct}) ->
+    {Tag, get_field(ref, Struct)}.
 
 -spec raise_conflict(tuple()) -> no_return().
-
 raise_conflict(Why) ->
     throw({conflict, Why}).
 
-%%TODO:elaborate
 -spec get_data(dmt:domain_object()) -> any().
-get_data({_Tag, {_Type, _Ref, Data}}) ->
-    Data.
+get_data({_Tag, Struct}) ->
+    get_field(data, Struct).
+
+get_field(Field, Struct) when is_atom(Field) ->
+    StructName = get_struct_name(Struct),
+    StructInfo = get_struct_info(StructName),
+    FieldInfo  = get_field_info(Field, StructInfo),
+    FieldIndex = get_field_index(FieldInfo),
+    get_field(FieldIndex, Struct);
+get_field(FieldIndex, Struct) when is_integer(FieldIndex) ->
+    element(FieldIndex + 1, Struct).
+
+get_struct_name(Struct) ->
+    element(1, Struct).
+
+get_struct_info(StructName) ->
+    dmt_domain_thrift:struct_info(StructName).
+
+get_field_info(Field, {struct, _StructType, FieldInfo}) ->
+    lists:keyfind(Field, 4, FieldInfo).
+
+get_field_index({Index, _Required, _Info, _Name, _}) ->
+    Index.
 
 check_refs(DomainObject, Domain) ->
     [_Type | Fields] = erlang:tuple_to_list(get_data(DomainObject)),

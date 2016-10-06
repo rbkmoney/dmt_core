@@ -57,7 +57,7 @@ cache_snapshot(Snapshot) ->
     ok = gen_server:call(?SERVER, {cache_snapshot, Snapshot}),
     Snapshot.
 
--spec commit(dmt:commit()) -> ok.
+-spec commit(dmt:commit()) -> dmt:snapshot().
 commit(Commit) ->
     case gen_server:call(?SERVER, {commit, Commit}) of
         {ok, Snapshot} ->
