@@ -62,8 +62,8 @@ commit(Commit) ->
     case gen_server:call(?SERVER, {commit, Commit}) of
         {ok, Snapshot} ->
             Snapshot;
-        {error, integrity_check_failed} ->
-            throw(integrity_check_failed)
+        {error, Error} ->
+            throw(Error)
     end.
 
 %%
@@ -105,8 +105,8 @@ handle_call({commit, #'Commit'{ops = Ops}}, _From, State) ->
         true = ets:insert(?TABLE, NewSnapshot),
         {reply, {ok, NewSnapshot}, State}
     catch
-        integrity_check_failed ->
-            {reply, {error, integrity_check_failed}, State}
+        throw:Error ->
+            {reply, {error, Error}, State}
     end;
 handle_call(_Msg, _From, State) ->
     {noreply, State}.
