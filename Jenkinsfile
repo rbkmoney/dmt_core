@@ -6,7 +6,7 @@ build('dmt_core', 'docker-host') {
 
   runStage('compile') {
     withGithubSshCredentials {
-      sh 'submodule update --init'
+      sh 'git submodule update --init'
     }
   }
 
