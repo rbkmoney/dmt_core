@@ -8,7 +8,7 @@
 -export([application_stop/1]).
 -export([integrity/1]).
 
--include("dmt_domain_config_thrift.hrl").
+-include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
 
 %%
 %% tests descriptions

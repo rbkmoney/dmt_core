@@ -1,4 +1,4 @@
 [{<<"dmsl">>,
   {git,"git@github.com:rbkmoney/damsel_erlang.git",
-       {ref,"56221ef1330664075581d7a801e575951045f69f"}},
+       {ref,"44eab8b24f5d6dccb20a73c217ee02ecf40d45b0"}},
   0}].

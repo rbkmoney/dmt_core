@@ -107,7 +107,7 @@ get_struct_name(Struct) ->
     element(1, Struct).
 
 get_struct_info(StructName) ->
-    dmt_domain_thrift:struct_info(StructName).
+    dmsl_domain_thrift:struct_info(StructName).
 
 get_field_info(Field, {struct, _StructType, FieldInfo}) ->
     lists:keyfind(Field, 4, FieldInfo).
@@ -159,7 +159,7 @@ has_ref(Ref, Map) when is_map(Map) ->
     has_ref(Ref, [V || {_K, V} <- maps:to_list(Map)]).
 
 is_reference_type(Type) ->
-    {struct, union, StructInfo} = dmt_domain_thrift:struct_info('Reference'),
+    {struct, union, StructInfo} = dmsl_domain_thrift:struct_info('Reference'),
     is_reference_type(Type, StructInfo).
 
 is_reference_type(_Type, []) ->
