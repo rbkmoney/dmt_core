@@ -7,12 +7,12 @@
 -include("dmt_domain_config_thrift.hrl").
 
 -spec head(dmt:history()) -> dmt:snapshot().
-head(History) when map_size(History) =:= 0 ->
-    #'Snapshot'{version = 0, domain = dmt_domain:new()};
 head(History) ->
     head(History, #'Snapshot'{version = 0, domain = dmt_domain:new()}).
 
 -spec head(dmt:history(), dmt:snapshot()) -> dmt:snapshot().
+head(History, Snapshot) when map_size(History) =:= 0 ->
+    Snapshot;
 head(History, Snapshot) ->
     Head = lists:max(maps:keys(History)),
     travel(Head, History, Snapshot).
