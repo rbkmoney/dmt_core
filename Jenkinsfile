@@ -11,9 +11,11 @@ build('dmt_core', 'docker-host') {
   }
 
   def pipeDefault
+  def withWsCache
   runStage('load pipeline') {
-    env.JENKINS_LIB = "builtils/jenkins_lib"
+    env.JENKINS_LIB = "build_utils/jenkins_lib"
     pipeDefault = load("${env.JENKINS_LIB}/pipeDefault.groovy")
+    withWsCache = load("${env.JENKINS_LIB}/withWsCache.groovy")
   }
 
   pipeDefault() {
@@ -29,8 +31,9 @@ build('dmt_core', 'docker-host') {
       sh 'make wc_xref'
     }
     runStage('dialyze') {
-      sh 'make wc_dialyze'
+      withWsCache("_build/default/rebar3_18.3_plt") {
+        sh 'make wc_dialyze'
+      }
     }
   }
-
 }
