@@ -28,6 +28,9 @@ build('dmt_core', 'docker-host') {
     runStage('xref') {
       sh 'make wc_xref'
     }
+    runStage('dialyze') {
+      sh 'make wc_dialyze'
+    }
   }
 
 }
