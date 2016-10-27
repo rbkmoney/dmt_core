@@ -31,6 +31,9 @@ build('dmt_core', 'docker-host') {
     runStage('dialyze') {
       sh 'make wc_dialyze'
     }
+    runStage('dialyze') {
+      sh 'make wc_test'
+    }
   }
 
 }

@@ -9,9 +9,9 @@ TEMPLATES_PATH := .
 SERVICE_NAME := dmt_core
 
 # Build image tag to be used
-BUILD_IMAGE_TAG := 80c38dc638c0879687f6661f4e16e8de9fc0d2c6
+BUILD_IMAGE_TAG := b40627de232e7f04c9abd2c480856dac7bcd9386
 
-CALL_ANYWHERE := all submodules rebar-update compile xref lint dialyze clean distclean
+CALL_ANYWHERE := all submodules rebar-update compile xref lint dialyze test clean distclean
 CALL_W_CONTAINER := $(CALL_ANYWHERE)
 
 all: compile
@@ -41,9 +41,11 @@ lint:
 dialyze:
 	$(REBAR) dialyzer
 
+test:
+	$(REBAR) eunit
+
 clean:
 	$(REBAR) clean
 
 distclean:
-	$(REBAR) clean -a
-	rm -rfv _build _builds _cache _steps _temp
+	rm -rf _build
