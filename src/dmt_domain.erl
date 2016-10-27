@@ -84,5 +84,7 @@ delete(Object, Domain) ->
 get_ref({Tag, {_Type, Ref, _Data}}) ->
     {Tag, Ref}.
 
+-spec raise_conflict(tuple()) -> no_return().
+
 raise_conflict(Why) ->
     throw({conflict, Why}).

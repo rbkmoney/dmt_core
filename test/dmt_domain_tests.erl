@@ -35,7 +35,7 @@ conflict_test_() ->
             dmt_domain:apply_operations([], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_already_exists, _}},
+            {conflict, {object_already_exists, ?dummy_link(1337, 42)}},
             dmt_domain:apply_operations([?insert(?dummy_link(1337, 1))], Fixture)
         ),
         ?_assertMatch(
@@ -43,11 +43,11 @@ conflict_test_() ->
             dmt_domain:apply_operations([?remove(?dummy(42)), ?remove(?dummy(44))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, _}},
+            {conflict, {object_not_found, ?dummy(1)}},
             dmt_domain:apply_operations([?remove(?dummy(1))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, _}},
+            {conflict, {object_not_found, ?dummy(42)}},
             dmt_domain:apply_operations([?remove(?dummy(42)), ?remove(?dummy(42))], Fixture)
         ),
         ?_assertMatch(
@@ -55,15 +55,15 @@ conflict_test_() ->
             dmt_domain:apply_operations([?update(?dummy_link(1337, 42), ?dummy_link(1337, 44))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_reference_mismatch, _}},
+            {conflict, {object_reference_mismatch, {dummy, #domain_DummyRef{id = 1}}}},
             dmt_domain:apply_operations([?update(?dummy(42), ?dummy(1))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, _}},
+            {conflict, {object_not_found, ?dummy_link(1, 42)}},
             dmt_domain:apply_operations([?update(?dummy_link(1, 42), ?dummy_link(1, 44))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, _}},
+            {conflict, {object_not_found, ?dummy_link(1337, 1)}},
             dmt_domain:apply_operations([?update(?dummy_link(1337, 1), ?dummy_link(1337, 42))], Fixture)
         )
     ].
