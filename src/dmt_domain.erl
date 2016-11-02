@@ -104,7 +104,22 @@ get_field(FieldIndex, Struct) when is_integer(FieldIndex) ->
     element(FieldIndex + 1, Struct).
 
 get_struct_name(Struct) ->
-    element(1, Struct).
+    RecordName = element(1, Struct),
+    get_struct_name(RecordName, dmsl_domain_thrift:structs()).
+
+get_struct_name(RecordName, []) ->
+    error({badarg, RecordName});
+
+get_struct_name(RecordName, [StructName | Tail]) ->
+    try
+        case dmsl_domain_thrift:record_name(StructName) of
+            RecordName -> StructName;
+            _ -> get_struct_name(RecordName, Tail)
+        end
+    catch
+        error:badarg ->
+            get_struct_name(RecordName, Tail)
+    end.
 
 get_struct_info(StructName) ->
     dmsl_domain_thrift:struct_info(StructName).

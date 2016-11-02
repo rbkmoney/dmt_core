@@ -9,6 +9,7 @@
 -export([integrity/1]).
 
 -include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 %%
 %% tests descriptions
@@ -89,20 +90,20 @@ remove(Object) ->
     (catch dmt_cache:commit(Commit)).
 
 dummy(Id) ->
-    {dummy, #'DummyObject'{
-        ref = #'DummyRef'{
+    {dummy, #domain_DummyObject{
+        ref = #domain_DummyRef{
             id = Id
         },
-        data = #'Dummy'{}
+        data = #domain_Dummy{}
     }}.
 
 dummy_link(Id, Link) ->
-    {dummy_link, #'DummyLinkObject'{
-        ref = #'DummyLinkRef'{
+    {dummy_link, #domain_DummyLinkObject{
+        ref = #domain_DummyLinkRef{
             id = Id
         },
-        data = #'DummyLink'{
-            link = #'DummyRef'{
+        data = #domain_DummyLink{
+            link = #domain_DummyRef{
                 id = Link
             }
         }

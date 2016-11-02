@@ -1,5 +1,6 @@
 -module(dmt_domain_tests).
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
 
 -type testcase() :: {_, fun()}.
@@ -40,15 +41,15 @@ conflict_test_() ->
         ),
         ?_assertMatch(
             #{},
-            dmt_domain:apply_operations([?remove(?dummy(42)), ?remove(?dummy(44))], Fixture)
+            dmt_domain:apply_operations([?remove(?dummy_link(1337, 42)), ?remove(?dummy(42)), ?remove(?dummy(44))], Fixture)
         ),
         ?_assertThrow(
             {conflict, {object_not_found, ?dummy(1)}},
             dmt_domain:apply_operations([?remove(?dummy(1))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, ?dummy(42)}},
-            dmt_domain:apply_operations([?remove(?dummy(42)), ?remove(?dummy(42))], Fixture)
+            {conflict, {object_not_found, ?dummy(41)}},
+            dmt_domain:apply_operations([?remove(?dummy(41)), ?remove(?dummy(41))], Fixture)
         ),
         ?_assertMatch(
             #{},
@@ -72,6 +73,7 @@ conflict_test_() ->
 
 construct_fixture() ->
     maps:from_list([{{Type, Ref}, Object} || Object = {Type, {_, Ref, _}} <- [
+        ?dummy(41),
         ?dummy(42),
         ?dummy(43),
         ?dummy(44),
