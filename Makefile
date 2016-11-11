@@ -43,6 +43,7 @@ dialyze:
 
 test:
 	$(REBAR) eunit
+	$(REBAR) ct
 
 clean:
 	$(REBAR) clean

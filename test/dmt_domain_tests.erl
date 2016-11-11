@@ -1,32 +1,12 @@
 -module(dmt_domain_tests).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
+-include("dmt_domain_tests_helper.hrl").
 
 -type testcase() :: {_, fun()}.
 
 -spec test() -> _.
 -spec conflict_test_() -> [testcase()].
-
-%%
-
--define(dummy(ID),
-    {dummy, #domain_DummyObject{
-        ref = #domain_DummyRef{id = ID},
-        data = #domain_Dummy{}
-    }}
-).
-
--define(dummy_link(ID, To),
-    {dummy_link, #domain_DummyLinkObject{
-        ref = #domain_DummyLinkRef{id = ID},
-        data = #domain_DummyLink{link = #domain_DummyRef{id = To}}
-    }}
-).
-
--define(insert(O), {insert, #'InsertOp'{object = O}}).
--define(remove(O), {remove, #'RemoveOp'{object = O}}).
--define(update(O1, O2), {update, #'UpdateOp'{old_object = O1, new_object = O2}}).
 
 conflict_test_() ->
     Fixture = construct_fixture(),
@@ -37,7 +17,15 @@ conflict_test_() ->
         ),
         ?_assertThrow(
             {conflict, {object_already_exists, ?dummy_link(1337, 42)}},
-            dmt_domain:apply_operations([?insert(?dummy_link(1337, 1))], Fixture)
+            dmt_domain:apply_operations([?insert(?dummy_link(1337, 43))], Fixture)
+        ),
+        ?_assertThrow(
+            {integrity_check_failed, {non_existent, [{dummy, #domain_DummyRef{id = 0}}]}},
+            dmt_domain:apply_operations([?insert(?dummy_link(1, 0))], Fixture)
+        ),
+        ?_assertThrow(
+            {integrity_check_failed, {referenced, [?dummy_link(1337, 42)]}},
+            dmt_domain:apply_operations([?remove(?dummy(42))], Fixture)
         ),
         ?_assertMatch(
             #{},
@@ -50,6 +38,10 @@ conflict_test_() ->
         ?_assertThrow(
             {conflict, {object_not_found, ?dummy(41)}},
             dmt_domain:apply_operations([?remove(?dummy(41)), ?remove(?dummy(41))], Fixture)
+        ),
+        ?_assertThrow(
+            {integrity_check_failed, {non_existent, [{dummy, #domain_DummyRef{id = 0}}]}},
+            dmt_domain:apply_operations([?update(?dummy_link(1337, 42), ?dummy_link(1337, 0))], Fixture)
         ),
         ?_assertMatch(
             #{},

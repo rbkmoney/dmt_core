@@ -96,7 +96,7 @@ handle_call({cache_snapshot, Snapshot}, _From, State) ->
     true = ets:insert(?TABLE, Snapshot),
     {reply, ok, State};
 handle_call({commit, #'Commit'{ops = Ops}}, _From, State) ->
-    #'Snapshot'{version = Version, domain = Domain} = checkout({head, #'Head'{}}),
+    #'Snapshot'{version = Version, domain = Domain} = checkout_head(),
     try
         NewSnapshot = #'Snapshot'{
             version = Version + 1,
