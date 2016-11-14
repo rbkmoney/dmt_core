@@ -90,10 +90,6 @@ get_ref({Tag, Struct}) ->
 raise_conflict(Why) ->
     throw({conflict, Why}).
 
--spec get_data(dmt:domain_object()) -> any().
-get_data({_Tag, Struct}) ->
-    get_field(data, Struct).
-
 get_field(Field, Struct) when is_atom(Field) ->
     StructName = get_struct_name(Struct),
     StructInfo = get_struct_info(StructName),
@@ -103,8 +99,8 @@ get_field(Field, Struct) when is_atom(Field) ->
 get_field(FieldIndex, Struct) when is_integer(FieldIndex) ->
     element(FieldIndex + 1, Struct).
 
-get_struct_name(Struct) when is_tuple(Struct) ->
-    RecordName = element(1, Struct),
+get_struct_name(Record) when is_tuple(Record) ->
+    RecordName = element(1, Record),
     get_struct_name(RecordName);
 
 get_struct_name(RecordName) when is_atom(RecordName) ->
@@ -134,17 +130,17 @@ get_field_index({Index, _Required, _Info, _Name, _}) ->
     Index.
 
 check_correct_refs(DomainObject, Domain) ->
-    {_, NonExistent} = lists:partition(
+    NonExistent = lists:filter(
         fun(E) ->
-            object_exists(E, Domain)
+            not object_exists(E, Domain)
         end,
-        referenced_to(DomainObject)
+        references(DomainObject)
     ),
     case NonExistent of
         [] ->
             ok;
         _ ->
-            integrity_check_failed({non_existent, NonExistent})
+            integrity_check_failed({references_nonexistent, NonExistent})
     end.
 
 check_no_refs(DomainObject, Domain) ->
@@ -152,16 +148,15 @@ check_no_refs(DomainObject, Domain) ->
         [] ->
             ok;
         Referenced ->
-            integrity_check_failed({referenced, Referenced})
+            integrity_check_failed({referenced_by, Referenced})
     end.
 
 referenced_by(DomainObject, Domain) ->
-    {_Tag, Ref} = get_ref(DomainObject),
+    Ref = get_ref(DomainObject),
     Values = [V ||{_K, V} <- maps:to_list(Domain)],
     lists:foldl(
         fun(V, Acc) ->
-            Data = get_data(V),
-            case has_ref(Ref, Data) of
+            case lists:member(Ref, references(V)) of
                 true -> [V | Acc];
                 false -> Acc
             end
@@ -170,21 +165,78 @@ referenced_by(DomainObject, Domain) ->
         Values
     ).
 
-referenced_to(DomainObject) ->
-    [_Type | Fields] = erlang:tuple_to_list(get_data(DomainObject)),
+references(DomainObject = {Tag, _Object}) ->
+    SchemaInfo = get_struct_info('DomainObject'),
+    {_, _, {struct, _, {_, ObjectStructName}}, _, _} = get_field_info(Tag, SchemaInfo),
+    ObjectStructInfo = get_struct_info(ObjectStructName),
+    Data = get_data(DomainObject),
+    {_, _, DataType, _, _} = get_field_info(data, ObjectStructInfo),
+    references(Data, DataType).
+
+references(Object, FieldInfo) ->
+    references(Object, FieldInfo, []).
+
+references(undefined, _StructInfo, Refs) ->
+    Refs;
+references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when is_list(FieldsInfo) ->
+    {_, _, Type, _, _} = get_field_info(Tag, StructInfo),
+    case is_reference_type(Type) of
+        {true, T} ->
+            [{T, Object} | Refs];
+        false ->
+            references(Object, Type, Refs)
+    end;
+references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
     lists:foldl(
-        fun(MaybeRef, Acc) ->
-            [T | _] = erlang:tuple_to_list(MaybeRef),
-            case is_reference_type(T) of
-                {true, Tag} ->
-                    [{Tag, MaybeRef} | Acc];
-                false ->
-                    Acc
-            end
+        fun
+            ({N, _Required, FieldType, _Name, _}, Acc) ->
+                case is_reference_type(FieldType) of
+                    {true, Tag} ->
+                        [{Tag, element(N + 1, Object)} | Acc];
+                    false ->
+                        references(element(N + 1, Object), FieldType, Acc)
+                end
         end,
-        [],
-        Fields
-    ).
+        Refs,
+        FieldsInfo
+    );
+references(Object, {struct, _, {_, StructName}}, Refs) ->
+    StructInfo = get_struct_info(StructName),
+    references(Object, StructInfo, Refs);
+references(Object, {list, FieldType}, Refs) ->
+    case is_reference_type(FieldType) of
+        {true, Tag} ->
+            lists:foldl(
+                fun(O, Acc) ->
+                    [{Tag, O} | Acc]
+                end,
+                Refs,
+                Object
+            );
+        false ->
+            lists:foldl(
+                fun(O, Acc) ->
+                    references(O, FieldType, Acc)
+                end,
+                Refs,
+                Object
+            )
+    end;
+references(Object, {set, FieldType}, Refs) ->
+    ListObject = ordsets:to_list(Object),
+    references(ListObject, {list, FieldType}, Refs);
+references(Object, {map, KeyType, ValueType}, Refs) ->
+    references(
+        maps:values(Object),
+        {list, ValueType},
+        references(maps:keys(Object), {list, KeyType}, Refs)
+    );
+references(_DomainObject, _Primitive, Refs) ->
+    Refs.
+
+-spec get_data(dmt:domain_object()) -> any().
+get_data({_Tag, Struct}) ->
+    get_field(data, Struct).
 
 object_exists(Ref, Domain) ->
     case maps:find(Ref, Domain) of
@@ -194,31 +246,13 @@ object_exists(Ref, Domain) ->
             false
     end.
 
-has_ref(Ref, Struct) when is_tuple(Struct) ->
-    [_Type | Fields] = erlang:tuple_to_list(Struct),
-    lists:member(Ref, Fields);
-has_ref(Ref, List) when is_list(List) ->
-    lists:any(fun (Element) -> has_ref(Ref, Element) end, List);
-has_ref(Ref, Map) when is_map(Map) ->
-    List = maps:fold(
-        fun(K, V, Acc) ->
-            [K, V | Acc]
-        end,
-        [],
-        Map
-    ),
-    has_ref(Ref, List);
-has_ref(_Ref, _Field) ->
-    false.
-
 is_reference_type(Type) ->
-    StructName = get_struct_name(Type),
-    {struct, union, StructInfo} = dmsl_domain_thrift:struct_info('Reference'),
-    is_reference_type(StructName, StructInfo).
+    {struct, union, StructInfo} = get_struct_info('Reference'),
+    is_reference_type(Type, StructInfo).
 
 is_reference_type(_Type, []) ->
     false;
-is_reference_type(Type, [{_, _, {_, _, {_, Type}}, Tag, _} | _Rest]) ->
+is_reference_type(Type, [{_, _, Type, Tag, _} | _Rest]) ->
     {true, Tag};
 is_reference_type(Type, [_ | Rest]) ->
     is_reference_type(Type, Rest).
