@@ -135,11 +135,5 @@ construct_fixture() ->
         ?dummy(44),
         ?dummy_link(1337, 42),
         ?dummy_link(1338, 43),
-        {category, #domain_CategoryObject{
-            ref = ?category_ref(1),
-            data = #domain_Category{
-                name = <<"testCategory">>,
-                description = <<"kill me">>
-            }
-        }}
+        ?category(1, <<"testCategory">>, <<"testDescription">>)
     ]]).

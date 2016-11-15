@@ -82,43 +82,14 @@ delete(Object, Domain) ->
             raise_conflict({object_not_found, Object})
     end.
 
--spec get_ref(dmt:domain_object()) -> dmt:object_ref().
-get_ref({Tag, Struct}) ->
-    {Tag, get_field(ref, Struct)}.
-
 -spec raise_conflict(tuple()) -> no_return().
 raise_conflict(Why) ->
     throw({conflict, Why}).
 
-get_field(Field, Struct) when is_atom(Field) ->
-    StructName = get_struct_name(Struct),
-    StructInfo = get_struct_info(StructName),
+get_field(Field, Struct, StructInfo) when is_atom(Field) ->
     FieldInfo  = get_field_info(Field, StructInfo),
     FieldIndex = get_field_index(FieldInfo),
-    get_field(FieldIndex, Struct);
-get_field(FieldIndex, Struct) when is_integer(FieldIndex) ->
     element(FieldIndex + 1, Struct).
-
-get_struct_name(Record) when is_tuple(Record) ->
-    RecordName = element(1, Record),
-    get_struct_name(RecordName);
-
-get_struct_name(RecordName) when is_atom(RecordName) ->
-    get_struct_name(RecordName, dmsl_domain_thrift:structs()).
-
-get_struct_name(RecordName, []) ->
-    error({badarg, RecordName});
-
-get_struct_name(RecordName, [StructName | Tail]) ->
-    try
-        case dmsl_domain_thrift:record_name(StructName) of
-            RecordName -> StructName;
-            _ -> get_struct_name(RecordName, Tail)
-        end
-    catch
-        error:badarg ->
-            get_struct_name(RecordName, Tail)
-    end.
 
 get_struct_info(StructName) ->
     dmsl_domain_thrift:struct_info(StructName).
@@ -153,93 +124,89 @@ check_no_refs(DomainObject, Domain) ->
 
 referenced_by(DomainObject, Domain) ->
     Ref = get_ref(DomainObject),
-    Values = [V ||{_K, V} <- maps:to_list(Domain)],
-    lists:foldl(
-        fun(V, Acc) ->
+    maps:fold(
+        fun(_K, V, Acc) ->
             case lists:member(Ref, references(V)) of
                 true -> [V | Acc];
                 false -> Acc
             end
         end,
         [],
-        Values
+        Domain
     ).
 
 references(DomainObject = {Tag, _Object}) ->
-    SchemaInfo = get_struct_info('DomainObject'),
-    {_, _, {struct, _, {_, ObjectStructName}}, _, _} = get_field_info(Tag, SchemaInfo),
-    ObjectStructInfo = get_struct_info(ObjectStructName),
+    ObjectStructInfo = get_domain_object_schema(Tag),
     Data = get_data(DomainObject),
     {_, _, DataType, _, _} = get_field_info(data, ObjectStructInfo),
     references(Data, DataType).
 
-references(Object, FieldInfo) ->
-    references(Object, FieldInfo, []).
+references(Object, FieldType) ->
+    references(Object, FieldType, []).
 
 references(undefined, _StructInfo, Refs) ->
     Refs;
 references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when is_list(FieldsInfo) ->
     {_, _, Type, _, _} = get_field_info(Tag, StructInfo),
-    case is_reference_type(Type) of
-        {true, T} ->
-            [{T, Object} | Refs];
-        false ->
-            references(Object, Type, Refs)
-    end;
+    check_reference_type(Object, Type, Refs);
 references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
     lists:foldl(
         fun
             ({N, _Required, FieldType, _Name, _}, Acc) ->
-                case is_reference_type(FieldType) of
-                    {true, Tag} ->
-                        [{Tag, element(N + 1, Object)} | Acc];
-                    false ->
-                        references(element(N + 1, Object), FieldType, Acc)
-                end
+                check_reference_type(element(N + 1, Object), FieldType, Acc)
         end,
         Refs,
         FieldsInfo
     );
 references(Object, {struct, _, {_, StructName}}, Refs) ->
     StructInfo = get_struct_info(StructName),
-    references(Object, StructInfo, Refs);
+    check_reference_type(Object, StructInfo, Refs);
 references(Object, {list, FieldType}, Refs) ->
-    case is_reference_type(FieldType) of
-        {true, Tag} ->
-            lists:foldl(
-                fun(O, Acc) ->
-                    [{Tag, O} | Acc]
-                end,
-                Refs,
-                Object
-            );
-        false ->
-            lists:foldl(
-                fun(O, Acc) ->
-                    references(O, FieldType, Acc)
-                end,
-                Refs,
-                Object
-            )
-    end;
+    lists:foldl(
+        fun(O, Acc) ->
+            check_reference_type(O, FieldType, Acc)
+        end,
+        Refs,
+        Object
+    );
 references(Object, {set, FieldType}, Refs) ->
     ListObject = ordsets:to_list(Object),
-    references(ListObject, {list, FieldType}, Refs);
+    check_reference_type(ListObject, {list, FieldType}, Refs);
 references(Object, {map, KeyType, ValueType}, Refs) ->
-    references(
+    check_reference_type(
         maps:values(Object),
         {list, ValueType},
-        references(maps:keys(Object), {list, KeyType}, Refs)
+        check_reference_type(maps:keys(Object), {list, KeyType}, Refs)
     );
 references(_DomainObject, _Primitive, Refs) ->
     Refs.
 
+check_reference_type(Object, Type, Refs) ->
+    case is_reference_type(Type) of
+        {true, Tag} ->
+            [{Tag, Object} | Refs];
+        false ->
+            references(Object, Type, Refs)
+    end.
+
+-spec get_ref(dmt:domain_object()) -> dmt:object_ref().
+get_ref(DomainObject = {Tag, _Struct}) ->
+    {Tag, get_domain_object_field(ref, DomainObject)}.
+
 -spec get_data(dmt:domain_object()) -> any().
-get_data({_Tag, Struct}) ->
-    get_field(data, Struct).
+get_data(DomainObject) ->
+    get_domain_object_field(data, DomainObject).
+
+get_domain_object_field(Field, {Tag, Struct}) ->
+    get_field(Field, Struct, get_domain_object_schema(Tag)).
+
+get_domain_object_schema(Tag) ->
+    SchemaInfo = get_struct_info('DomainObject'),
+    {_, _, {struct, _, {_, ObjectStructName}}, _, _} = get_field_info(Tag, SchemaInfo),
+    get_struct_info(ObjectStructName).
 
 object_exists(Ref, Domain) ->
-    case maps:find(Ref, Domain) of
+    case get_object(Ref, Domain) of
         {ok, _Object} ->
             true;
         error ->
