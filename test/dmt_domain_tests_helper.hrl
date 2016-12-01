@@ -24,6 +24,12 @@
 -define(system_account_set_ref(ID), #domain_SystemAccountSetRef{id = ID}).
 -define(currency_ref(ID), #domain_CurrencyRef{symbolic_code = ID}).
 -define(sas_ref(ID), #domain_SystemAccountSetRef{id = ID}).
+-define(terminal_ref(ID), #domain_TerminalRef{id = ID}).
+-define(payment_method_ref(ID), #domain_PaymentMethodRef{id = ID}).
+
+
+-define(term_acc_set(Cur, Rec, Com),
+    #domain_TerminalAccountSet{currency = ?currency_ref(Cur), receipt = Rec, compensation = Com}).
 
 -define(category(ID, Name, Description),
     {category, #domain_CategoryObject{

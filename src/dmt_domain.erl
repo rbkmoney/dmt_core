@@ -8,6 +8,8 @@
 -export([apply_operations/2]).
 -export([revert_operations/2]).
 
+-define(DOMAIN, dmsl_domain_thrift).
+
 %%
 
 -spec new() ->
@@ -131,18 +133,29 @@ integrity_check(Domain, [{delete, Object} | Rest]) ->
     integrity_check(Domain, Rest).
 
 get_field(Field, Struct, StructInfo) when is_atom(Field) ->
-    FieldInfo  = get_field_info(Field, StructInfo),
-    FieldIndex = get_field_index(FieldInfo),
-    element(FieldIndex + 1, Struct).
+    FieldIndex = get_field_index(Field, StructInfo),
+    element(FieldIndex, Struct).
 
 get_struct_info(StructName) ->
     dmsl_domain_thrift:struct_info(StructName).
 
-get_field_info(Field, {struct, _StructType, FieldInfo}) ->
-    lists:keyfind(Field, 4, FieldInfo).
+get_field_info(Field, {struct, _StructType, FieldsInfo}) ->
+    lists:keyfind(Field, 4, FieldsInfo).
 
-get_field_index({Index, _Required, _Info, _Name, _}) ->
-    Index.
+get_field_index(Field, {struct, _StructType, FieldsInfo}) ->
+    get_field_index(Field, mark_fields(FieldsInfo));
+
+get_field_index(_Field, []) ->
+    false;
+
+get_field_index(Field, [F | Rest]) ->
+    case F of
+        {I, {_, _, _, Field, _}} -> I;
+        _ -> get_field_index(Field, Rest)
+    end.
+
+mark_fields(FieldsInfo) ->
+    lists:zip(lists:seq(2, 1 + length(FieldsInfo)), FieldsInfo).
 
 check_correct_refs(DomainObject, Domain) ->
     NonExistent = lists:filter(
@@ -196,13 +209,13 @@ references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when i
 references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
     lists:foldl(
         fun
-            ({N, _Required, FieldType, _Name, _}, Acc) ->
-                check_reference_type(element(N + 1, Object), FieldType, Acc)
+            ({I, {_, _Required, FieldType, _Name, _}}, Acc) ->
+                check_reference_type(element(I, Object), FieldType, Acc)
         end,
         Refs,
-        FieldsInfo
+        mark_fields(FieldsInfo)
     );
-references(Object, {struct, _, {_, StructName}}, Refs) ->
+references(Object, {struct, _, {?DOMAIN, StructName}}, Refs) ->
     StructInfo = get_struct_info(StructName),
     check_reference_type(Object, StructInfo, Refs);
 references(Object, {list, FieldType}, Refs) ->

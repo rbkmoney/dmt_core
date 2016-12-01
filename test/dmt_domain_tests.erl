@@ -9,6 +9,7 @@
 -spec basic_flow_test_() -> [testcase()].
 -spec nested_links_test() -> [testcase()].
 -spec batch_link_test() -> [testcase()].
+-spec wrong_spec_order_test() -> [testcase()].
 
 basic_flow_test_() ->
     Fixture = construct_fixture(),
@@ -64,8 +65,6 @@ basic_flow_test_() ->
     ].
 
 nested_links_test() ->
-    Fixture = construct_fixture(),
-
     DomainObject = #domain_GlobalsObject{
         ref = #domain_GlobalsRef{},
         data = #domain_Globals{
@@ -128,19 +127,18 @@ nested_links_test() ->
                     ]
                 }
             },
-            dmt_domain:apply_operations([?insert({globals, DomainObject})], Fixture)
+            dmt_domain:apply_operations([?insert({globals, DomainObject})], construct_fixture())
         )
     .
 
 batch_link_test() ->
-    Fixture = construct_fixture(),
     Sas = {system_account_set, #domain_SystemAccountSetObject{
         ref = ?sas_ref(1),
         data = #domain_SystemAccountSet{
             name = <<"Primaries">>,
             description = <<"Primaries">>,
             currency = ?currency_ref(<<"USD">>),
-            compensation = []
+            compensation = 42
         }
     }},
     Currency = {currency, #domain_CurrencyObject{
@@ -154,9 +152,57 @@ batch_link_test() ->
     }},
     ?assertMatch(
         #{},
-        dmt_domain:apply_operations([?insert(Sas), ?insert(Currency)], Fixture)
+        dmt_domain:apply_operations([?insert(Sas), ?insert(Currency)], #{})
     ).
 
+wrong_spec_order_test() ->
+    Terminal = {
+        terminal,
+        #domain_TerminalObject{
+            ref = ?terminal_ref(1),
+            data = #domain_Terminal{
+                name = <<"Terminal 1">>,
+                description = <<"Test terminal 1">>,
+                payment_method = #domain_PaymentMethodRef{id = {bank_card, visa}},
+                category = ?category_ref(1),
+                cash_flow = [],
+                accounts = ?term_acc_set(
+                    <<"USD">>,
+                    42,
+                    24
+                ),
+                options = #{
+                    <<"override">> => <<"Terminal 1">>
+                }
+            }
+        }
+    },
+    Currency = {currency, #domain_CurrencyObject{
+        ref = ?currency_ref(<<"USD">>),
+        data = #domain_Currency{
+            name = <<"US Dollars">>,
+            numeric_code = 840,
+            symbolic_code = <<"USD">>,
+            exponent = 2
+        }
+    }},
+    PaymentMethod = {
+        payment_method,
+        #domain_PaymentMethodObject{
+            ref = ?payment_method_ref({bank_card, visa}),
+            data = #domain_PaymentMethodDefinition{
+                name = <<"VISA">>,
+                description = <<"VISA BANK CARD">>
+            }
+        }
+    },
+    ?assertMatch(
+        #{},
+        dmt_domain:apply_operations(
+            [?insert(Terminal), ?insert(Currency), ?insert(PaymentMethod)],
+            construct_fixture()
+        )
+    ).
 %%
 
 construct_fixture() ->
