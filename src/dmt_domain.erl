@@ -22,7 +22,7 @@ get_object(ObjectReference, Domain) ->
 
 -spec apply_operations([dmt:operation()], dmt:domain()) -> dmt:domain() | no_return().
 apply_operations(Operations, Domain) ->
-    apply_operations(Operations, Domain, []).
+    apply_operations(Operations, Domain, #{}).
 
 apply_operations([], Domain, Touched) ->
     ok = integrity_check(Domain, Touched),
@@ -32,19 +32,31 @@ apply_operations(
     Domain,
     Touched
 ) ->
-    apply_operations(Rest, insert(Object, Domain), [{insert, Object} | Touched]);
+    apply_operations(
+        Rest,
+        insert(Object, Domain),
+        Touched#{get_ref(Object) => {insert, Object}}
+    );
 apply_operations(
     [{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest],
     Domain,
     Touched
 ) ->
-    apply_operations(Rest, update(OldObject, NewObject, Domain), [{update, NewObject} | Touched]);
+    apply_operations(
+        Rest,
+        update(OldObject, NewObject, Domain),
+        Touched#{get_ref(NewObject) => {update, NewObject}}
+    );
 apply_operations(
     [{remove, #'RemoveOp'{object = Object}} | Rest],
     Domain,
     Touched
 ) ->
-    apply_operations(Rest, delete(Object, Domain), [{delete, Object} | Touched]).
+    apply_operations(
+        Rest,
+        delete(Object, Domain),
+        Touched#{get_ref(Object) => {delete, Object}}
+    ).
 
 -spec revert_operations([dmt:operation()], dmt:domain()) -> dmt:domain() | no_return().
 revert_operations([], Domain) ->
@@ -99,6 +111,9 @@ delete(Object, Domain) ->
 raise_conflict(Why) ->
     throw({conflict, Why}).
 
+
+integrity_check(Domain, Touched) when is_map(Touched) ->
+    integrity_check(Domain, maps:values(Touched));
 
 integrity_check(_Domain, []) ->
     ok;
