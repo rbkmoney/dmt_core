@@ -21,14 +21,30 @@ get_object(ObjectReference, Domain) ->
     maps:find(ObjectReference, Domain).
 
 -spec apply_operations([dmt:operation()], dmt:domain()) -> dmt:domain() | no_return().
-apply_operations([], Domain) ->
+apply_operations(Operations, Domain) ->
+    apply_operations(Operations, Domain, []).
+
+apply_operations([], Domain, Touched) ->
+    ok = integrity_check(Domain, Touched),
     Domain;
-apply_operations([{insert, #'InsertOp'{object = Object}} | Rest], Domain) ->
-    apply_operations(Rest, insert(Object, Domain));
-apply_operations([{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest], Domain) ->
-    apply_operations(Rest, update(OldObject, NewObject, Domain));
-apply_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
-    apply_operations(Rest, delete(Object, Domain)).
+apply_operations(
+    [{insert, #'InsertOp'{object = Object}} | Rest],
+    Domain,
+    Touched
+) ->
+    apply_operations(Rest, insert(Object, Domain), [{insert, Object} | Touched]);
+apply_operations(
+    [{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest],
+    Domain,
+    Touched
+) ->
+    apply_operations(Rest, update(OldObject, NewObject, Domain), [{update, NewObject} | Touched]);
+apply_operations(
+    [{remove, #'RemoveOp'{object = Object}} | Rest],
+    Domain,
+    Touched
+) ->
+    apply_operations(Rest, delete(Object, Domain), [{delete, Object} | Touched]).
 
 -spec revert_operations([dmt:operation()], dmt:domain()) -> dmt:domain() | no_return().
 revert_operations([], Domain) ->
@@ -43,7 +59,6 @@ revert_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
 -spec insert(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 insert(Object, Domain) ->
     ObjectReference = get_ref(Object),
-    ok = check_correct_refs(Object, Domain),
     case maps:find(ObjectReference, Domain) of
         error ->
             maps:put(ObjectReference, Object, Domain);
@@ -54,7 +69,6 @@ insert(Object, Domain) ->
 -spec update(dmt:domain_object(), dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 update(OldObject, NewObject, Domain) ->
     ObjectReference = get_ref(OldObject),
-    ok = check_correct_refs(NewObject, Domain),
     case get_ref(NewObject) of
         ObjectReference ->
             case maps:find(ObjectReference, Domain) of
@@ -72,7 +86,6 @@ update(OldObject, NewObject, Domain) ->
 -spec delete(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
 delete(Object, Domain) ->
     ObjectReference = get_ref(Object),
-    ok = check_no_refs(Object, Domain),
     case maps:find(ObjectReference, Domain) of
         {ok, Object} ->
             maps:remove(ObjectReference, Domain);
@@ -85,6 +98,22 @@ delete(Object, Domain) ->
 -spec raise_conflict(tuple()) -> no_return().
 raise_conflict(Why) ->
     throw({conflict, Why}).
+
+
+integrity_check(_Domain, []) ->
+    ok;
+
+integrity_check(Domain, [{insert, Object} | Rest]) ->
+    ok = check_correct_refs(Object, Domain),
+    integrity_check(Domain, Rest);
+
+integrity_check(Domain, [{update, Object} | Rest]) ->
+    ok = check_correct_refs(Object, Domain),
+    integrity_check(Domain, Rest);
+
+integrity_check(Domain, [{delete, Object} | Rest]) ->
+    ok = check_no_refs(Object, Domain),
+    integrity_check(Domain, Rest).
 
 get_field(Field, Struct, StructInfo) when is_atom(Field) ->
     FieldInfo  = get_field_info(Field, StructInfo),

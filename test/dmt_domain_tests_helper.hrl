@@ -22,6 +22,8 @@
 -define(provider_ref(ID), #domain_ProviderRef{id = ID}).
 -define(party_prototype_ref(ID), #domain_PartyPrototypeRef{id = ID}).
 -define(system_account_set_ref(ID), #domain_SystemAccountSetRef{id = ID}).
+-define(currency_ref(ID), #domain_CurrencyRef{symbolic_code = ID}).
+-define(sas_ref(ID), #domain_SystemAccountSetRef{id = ID}).
 
 -define(category(ID, Name, Description),
     {category, #domain_CategoryObject{
@@ -32,7 +34,6 @@
         }
     }
 }).
-
 
 -define(insert(O), {insert, #'InsertOp'{object = O}}).
 -define(remove(O), {remove, #'RemoveOp'{object = O}}).
