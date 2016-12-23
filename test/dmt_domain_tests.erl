@@ -110,7 +110,9 @@ nested_links_test() ->
                 ordsets:from_list([
                     ?system_account_set_ref(0)
                 ])
-            }
+            },
+            inspector = ?inspector_ref(1),
+            default_contract_template = ?contract_template_ref(1)
         }
     },
     ?assertThrow(
@@ -118,6 +120,8 @@ nested_links_test() ->
                 {
                     references_nonexistent,
                     [
+                        {template, ?contract_template_ref(1)},
+                        {inspector, ?inspector_ref(1)},
                         {system_account_set, ?system_account_set_ref(0)},
                         {provider, ?provider_ref(2)},
                         {provider, ?provider_ref(1)},

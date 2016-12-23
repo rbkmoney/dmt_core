@@ -26,6 +26,8 @@
 -define(sas_ref(ID), #domain_SystemAccountSetRef{id = ID}).
 -define(terminal_ref(ID), #domain_TerminalRef{id = ID}).
 -define(payment_method_ref(ID), #domain_PaymentMethodRef{id = ID}).
+-define(contract_template_ref(ID), #domain_ContractTemplateRef{id = ID}).
+-define(inspector_ref(ID), #domain_InspectorRef{id = ID}).
 
 
 -define(term_acc_set(Cur, Rec, Com),
