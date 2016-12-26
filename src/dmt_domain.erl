@@ -238,6 +238,8 @@ references(Object, {map, KeyType, ValueType}, Refs) ->
 references(_DomainObject, _Primitive, Refs) ->
     Refs.
 
+check_reference_type(undefined, _, Refs) ->
+    Refs;
 check_reference_type(Object, Type, Refs) ->
     case is_reference_type(Type) of
         {true, Tag} ->
