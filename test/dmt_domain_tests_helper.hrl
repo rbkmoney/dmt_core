@@ -30,8 +30,8 @@
 -define(inspector_ref(ID), #domain_InspectorRef{id = ID}).
 
 
--define(term_acc_set(Cur, Rec, Com),
-    #domain_TerminalAccountSet{currency = ?currency_ref(Cur), receipt = Rec, compensation = Com}).
+-define(terminal_account(Cur),
+    #domain_TerminalAccount{currency = ?currency_ref(Cur), settlement = 4242}).
 
 -define(category(ID, Name, Description),
     {category, #domain_CategoryObject{

@@ -70,9 +70,9 @@ nested_links_test() ->
         data = #domain_Globals{
             party_prototype = ?party_prototype_ref(0),
             providers = {
-                predicates,
-                ordsets:from_list([
-                    #domain_ProviderPredicate{
+                decisions,
+                [
+                    #domain_ProviderDecision{
                         if_ = {
                             all_of,
                             ordsets:from_list([
@@ -90,7 +90,7 @@ nested_links_test() ->
                         }
 
                     },
-                    #domain_ProviderPredicate{
+                    #domain_ProviderDecision{
                         if_ = {
                             condition,
                             {category_is, ?category_ref(1)}
@@ -103,14 +103,9 @@ nested_links_test() ->
                             ])
                         }
                     }
-                ])
+                ]
             },
-            system_accounts = {
-                value,
-                ordsets:from_list([
-                    ?system_account_set_ref(0)
-                ])
-            },
+            system_account_set = {value, ?system_account_set_ref(0)},
             inspector = ?inspector_ref(1),
             default_contract_template = ?contract_template_ref(1)
         }
@@ -120,7 +115,7 @@ nested_links_test() ->
                 {
                     references_nonexistent,
                     [
-                        {template, ?contract_template_ref(1)},
+                        {contract_template, ?contract_template_ref(1)},
                         {inspector, ?inspector_ref(1)},
                         {system_account_set, ?system_account_set_ref(0)},
                         {provider, ?provider_ref(2)},
@@ -141,8 +136,9 @@ batch_link_test() ->
         data = #domain_SystemAccountSet{
             name = <<"Primaries">>,
             description = <<"Primaries">>,
-            currency = ?currency_ref(<<"USD">>),
-            compensation = 42
+            accounts = #{
+                ?currency_ref(<<"USD">>) => #domain_SystemAccount{settlement = 424242}
+            }
         }
     }},
     Currency = {currency, #domain_CurrencyObject{
@@ -170,11 +166,7 @@ wrong_spec_order_test() ->
                 payment_method = #domain_PaymentMethodRef{id = {bank_card, visa}},
                 category = ?category_ref(1),
                 cash_flow = [],
-                accounts = ?term_acc_set(
-                    <<"USD">>,
-                    42,
-                    24
-                ),
+                account = ?terminal_account(<<"USD">>),
                 options = #{
                     <<"override">> => <<"Terminal 1">>
                 }

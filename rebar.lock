@@ -1,6 +1,6 @@
 [{<<"dmsl">>,
   {git,"git@github.com:rbkmoney/damsel_erlang.git",
-       {ref,"874bdc5cac1525ecb666413d0d17e7a37a25b63b"}},
+       {ref,"33d87167d5bc0827f9b6ea009eb049e85bf7cc22"}},
   0},
  {<<"genlib">>,
   {git,"https://github.com/rbkmoney/genlib.git",
