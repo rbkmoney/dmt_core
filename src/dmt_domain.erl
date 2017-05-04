@@ -12,17 +12,22 @@
 
 %%
 
+-type operation() :: dmsl_domain_config_thrift:'Operation'().
+-type object_ref() :: dmsl_domain_thrift:'Reference'().
+-type domain() :: dmsl_domain_thrift:'Domain'().
+-type domain_object() :: dmsl_domain_thrift:'DomainObject'().
+
 -spec new() ->
-    dmt:domain().
+    domain().
 new() ->
     #{}.
 
--spec get_object(dmt:object_ref(), dmt:domain()) ->
-    {ok, dmt:domain_object()} | error.
+-spec get_object(object_ref(), domain()) ->
+    {ok, domain_object()} | error.
 get_object(ObjectReference, Domain) ->
     maps:find(ObjectReference, Domain).
 
--spec apply_operations([dmt:operation()], dmt:domain()) -> dmt:domain() | no_return().
+-spec apply_operations([operation()], domain()) -> domain() | no_return().
 apply_operations(Operations, Domain) ->
     apply_operations(Operations, Domain, #{}).
 
@@ -60,7 +65,7 @@ apply_operations(
         Touched#{get_ref(Object) => {delete, Object}}
     ).
 
--spec revert_operations([dmt:operation()], dmt:domain()) -> dmt:domain() | no_return().
+-spec revert_operations([operation()], domain()) -> domain() | no_return().
 revert_operations([], Domain) ->
     Domain;
 revert_operations([{insert, #'InsertOp'{object = Object}} | Rest], Domain) ->
@@ -70,7 +75,7 @@ revert_operations([{update, #'UpdateOp'{old_object = OldObject, new_object = New
 revert_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
     revert_operations(Rest, insert(Object, Domain)).
 
--spec insert(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
+-spec insert(domain_object(), domain()) -> domain() | no_return().
 insert(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:find(ObjectReference, Domain) of
@@ -80,7 +85,7 @@ insert(Object, Domain) ->
             raise_conflict({object_already_exists, ObjectWas})
     end.
 
--spec update(dmt:domain_object(), dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
+-spec update(domain_object(), domain_object(), domain()) -> domain() | no_return().
 update(OldObject, NewObject, Domain) ->
     ObjectReference = get_ref(OldObject),
     case get_ref(NewObject) of
@@ -97,7 +102,7 @@ update(OldObject, NewObject, Domain) ->
             raise_conflict({object_reference_mismatch, NewObjectReference})
     end.
 
--spec delete(dmt:domain_object(), dmt:domain()) -> dmt:domain() | no_return().
+-spec delete(domain_object(), domain()) -> domain() | no_return().
 delete(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:find(ObjectReference, Domain) of
@@ -248,11 +253,11 @@ check_reference_type(Object, Type, Refs) ->
             references(Object, Type, Refs)
     end.
 
--spec get_ref(dmt:domain_object()) -> dmt:object_ref().
+-spec get_ref(domain_object()) -> object_ref().
 get_ref(DomainObject = {Tag, _Struct}) ->
     {Tag, get_domain_object_field(ref, DomainObject)}.
 
--spec get_data(dmt:domain_object()) -> any().
+-spec get_data(domain_object()) -> any().
 get_data(DomainObject) ->
     get_domain_object_field(data, DomainObject).
 

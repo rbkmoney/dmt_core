@@ -1,8 +1,7 @@
-{application, dmt, [
+{application, dmt_core, [
     {description, "Domain config core library"},
     {vsn, "0"},
     {registered, []},
-    {mod, {dmt, []}},
     {applications, [
         kernel,
         stdlib,
@@ -10,7 +9,7 @@
     ]},
     {modules, []},
     {maintainers, [
-        "Igor Savchuk <i.savchuk@rbkmoney.com>"
+        "RBKmoney Team"
     ]},
     {licenses, []},
     {links, ["https://github.com/rbkmoney/dmt_core"]}

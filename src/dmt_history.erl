@@ -6,18 +6,22 @@
 
 -include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
 
--spec head(dmt:history()) -> dmt:snapshot().
+-type history() :: dmsl_domain_config_thrift:'History'().
+-type version() :: dmsl_domain_config_thrift:'Version'().
+-type snapshot() :: dmsl_domain_config_thrift:'Snapshot'().
+
+-spec head(history()) -> snapshot().
 head(History) ->
     head(History, #'Snapshot'{version = 0, domain = dmt_domain:new()}).
 
--spec head(dmt:history(), dmt:snapshot()) -> dmt:snapshot().
+-spec head(history(), snapshot()) -> snapshot().
 head(History, Snapshot) when map_size(History) =:= 0 ->
     Snapshot;
 head(History, Snapshot) ->
     Head = lists:max(maps:keys(History)),
     travel(Head, History, Snapshot).
 
--spec travel(dmt:version(), dmt:history(), dmt:snapshot()) -> dmt:snapshot().
+-spec travel(version(), history(), snapshot()) -> snapshot().
 travel(To, _History, #'Snapshot'{version = From} = Snapshot)
 when To =:= From ->
     Snapshot;
