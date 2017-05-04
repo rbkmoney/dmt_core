@@ -106,7 +106,7 @@ nested_links_test() ->
                 ]
             },
             system_account_set = {value, ?system_account_set_ref(0)},
-            inspector = ?inspector_ref(1),
+            inspector = {value, ?inspector_ref(1)},
             default_contract_template = ?contract_template_ref(1)
         }
     },
