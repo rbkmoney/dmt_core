@@ -35,11 +35,11 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([?remove(?dummy_link(1337, 42)), ?remove(?dummy(42)), ?remove(?dummy(44))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, ?dummy(1)}},
+            {conflict, {object_not_found, {dummy, #domain_DummyRef{id = 1}}}},
             dmt_domain:apply_operations([?remove(?dummy(1))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, ?dummy(41)}},
+            {conflict, {object_not_found, {dummy, #domain_DummyRef{id = 41}}}},
             dmt_domain:apply_operations([?remove(?dummy(41)), ?remove(?dummy(41))], Fixture)
         ),
         ?_assertThrow(
@@ -55,11 +55,11 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([?update(?dummy(42), ?dummy(1))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, ?dummy_link(1, 42)}},
+            {conflict, {object_not_found, {dummy_link, #domain_DummyLinkRef{id = 1}}}},
             dmt_domain:apply_operations([?update(?dummy_link(1, 42), ?dummy_link(1, 44))], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_not_found, ?dummy_link(1337, 1)}},
+            {conflict, {object_not_found, {dummy_link, #domain_DummyLinkRef{id = 1337}}}},
             dmt_domain:apply_operations([?update(?dummy_link(1337, 1), ?dummy_link(1337, 42))], Fixture)
         )
     ].
