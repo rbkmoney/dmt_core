@@ -94,9 +94,9 @@ update(OldObject, NewObject, Domain) ->
                 {ok, OldObject} ->
                     maps:put(ObjectReference, NewObject, Domain);
                 {ok, _ObjectWas} ->
-                    raise_conflict({object_not_found, OldObject});
+                    raise_conflict({object_not_found, ObjectReference});
                 error ->
-                    raise_conflict({object_not_found, OldObject})
+                    raise_conflict({object_not_found, ObjectReference})
             end;
         NewObjectReference ->
             raise_conflict({object_reference_mismatch, NewObjectReference})
@@ -109,9 +109,9 @@ delete(Object, Domain) ->
         {ok, Object} ->
             maps:remove(ObjectReference, Domain);
         {ok, _ObjectWas} ->
-            raise_conflict({object_not_found, Object});
+            raise_conflict({object_not_found, ObjectReference});
         error ->
-            raise_conflict({object_not_found, Object})
+            raise_conflict({object_not_found, ObjectReference})
     end.
 
 -spec raise_conflict(tuple()) -> no_return().
