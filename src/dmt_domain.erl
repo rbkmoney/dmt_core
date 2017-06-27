@@ -173,7 +173,10 @@ check_correct_refs(DomainObject, Domain) ->
         [] ->
             ok;
         _ ->
-            integrity_check_failed({references_nonexistent, NonExistent})
+            Ref = get_ref(DomainObject),
+            integrity_check_failed(
+                lists:map(fun(X) -> {X, [Ref]} end, NonExistent)
+            )
     end.
 
 check_no_refs(DomainObject, Domain) ->
@@ -181,7 +184,7 @@ check_no_refs(DomainObject, Domain) ->
         [] ->
             ok;
         Referenced ->
-            integrity_check_failed({referenced_by, Referenced})
+            integrity_check_failed([{get_ref(DomainObject), Referenced}])
     end.
 
 referenced_by(DomainObject, Domain) ->
@@ -189,7 +192,7 @@ referenced_by(DomainObject, Domain) ->
     maps:fold(
         fun(_K, V, Acc) ->
             case lists:member(Ref, references(V)) of
-                true -> [V | Acc];
+                true -> [get_ref(V) | Acc];
                 false -> Acc
             end
         end,
@@ -290,4 +293,4 @@ is_reference_type(Type, [_ | Rest]) ->
 
 -spec integrity_check_failed(Reason :: term()) -> no_return().
 integrity_check_failed(Reason) ->
-    throw({integrity_check_failed, Reason}).
+    throw({objects_not_exist, Reason}).
