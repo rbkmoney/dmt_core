@@ -23,11 +23,11 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([?insert(?dummy_link(1337, 43))], Fixture)
         ),
         ?_assertThrow(
-            {objects_not_exist, [{{dummy, #domain_DummyRef{id = 0}}, [{dummy_link, #domain_DummyLinkRef{id = 1}}]}]},
+            {conflict, {objects_not_exist, [{{dummy, #domain_DummyRef{id = 0}}, [{dummy_link, #domain_DummyLinkRef{id = 1}}]}]}},
             dmt_domain:apply_operations([?insert(?dummy_link(1, 0))], Fixture)
         ),
         ?_assertThrow(
-            {objects_not_exist, [{{dummy, #domain_DummyRef{id = 42}}, [{dummy_link, #domain_DummyLinkRef{id = 1337}}]}]},
+            {conflict, {objects_not_exist, [{{dummy, #domain_DummyRef{id = 42}}, [{dummy_link, #domain_DummyLinkRef{id = 1337}}]}]}},
             dmt_domain:apply_operations([?remove(?dummy(42))], Fixture)
         ),
         ?_assertMatch(
@@ -43,7 +43,7 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([?remove(?dummy(41)), ?remove(?dummy(41))], Fixture)
         ),
         ?_assertThrow(
-            {objects_not_exist, [{{dummy, #domain_DummyRef{id = 0}}, [{dummy_link, #domain_DummyLinkRef{id = 1337}}]}]},
+            {conflict, {objects_not_exist, [{{dummy, #domain_DummyRef{id = 0}}, [{dummy_link, #domain_DummyLinkRef{id = 1337}}]}]}},
             dmt_domain:apply_operations([?update(?dummy_link(1337, 42), ?dummy_link(1337, 0))], Fixture)
         ),
         ?_assertMatch(
@@ -111,6 +111,7 @@ nested_links_test() ->
         }
     },
     ?assertThrow(
+        {conflict,
             {objects_not_exist,
                 [
                     {{contract_template, ?contract_template_ref(1)}, [{globals,{domain_GlobalsRef}}]},
@@ -122,10 +123,10 @@ nested_links_test() ->
                     {{category, ?category_ref(0)}, [{globals,{domain_GlobalsRef}}]},
                     {{party_prototype, ?party_prototype_ref(0)}, [{globals,{domain_GlobalsRef}}]}
                 ]
-            },
-            dmt_domain:apply_operations([?insert({globals, DomainObject})], construct_fixture())
-        )
-    .
+            }
+        },
+        dmt_domain:apply_operations([?insert({globals, DomainObject})], construct_fixture())
+    ).
 
 batch_link_test() ->
     Sas = {system_account_set, #domain_SystemAccountSetObject{

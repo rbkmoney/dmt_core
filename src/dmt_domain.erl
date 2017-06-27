@@ -174,9 +174,9 @@ check_correct_refs(DomainObject, Domain) ->
             ok;
         _ ->
             Ref = get_ref(DomainObject),
-            integrity_check_failed(
+            raise_conflict({objects_not_exist,
                 lists:map(fun(X) -> {X, [Ref]} end, NonExistent)
-            )
+            })
     end.
 
 check_no_refs(DomainObject, Domain) ->
@@ -184,7 +184,7 @@ check_no_refs(DomainObject, Domain) ->
         [] ->
             ok;
         Referenced ->
-            integrity_check_failed([{get_ref(DomainObject), Referenced}])
+            raise_conflict({objects_not_exist, [{get_ref(DomainObject), Referenced}]})
     end.
 
 referenced_by(DomainObject, Domain) ->
@@ -290,7 +290,3 @@ is_reference_type(Type, [{_, _, Type, Tag, _} | _Rest]) ->
     {true, Tag};
 is_reference_type(Type, [_ | Rest]) ->
     is_reference_type(Type, Rest).
-
--spec integrity_check_failed(Reason :: term()) -> no_return().
-integrity_check_failed(Reason) ->
-    throw({objects_not_exist, Reason}).
