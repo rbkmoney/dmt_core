@@ -82,7 +82,7 @@ insert(Object, Domain) ->
         error ->
             maps:put(ObjectReference, Object, Domain);
         {ok, ObjectWas} ->
-            raise_conflict({object_already_exists, ObjectWas})
+            raise_conflict({object_already_exists, get_ref(ObjectWas)})
     end.
 
 -spec update(domain_object(), domain_object(), domain()) -> domain() | no_return().

@@ -19,7 +19,7 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([], Fixture)
         ),
         ?_assertThrow(
-            {conflict, {object_already_exists, ?dummy_link(1337, 42)}},
+            {conflict, {object_already_exists, {dummy_link, #domain_DummyLinkRef{id = 1337}}}},
             dmt_domain:apply_operations([?insert(?dummy_link(1337, 43))], Fixture)
         ),
         ?_assertThrow(
