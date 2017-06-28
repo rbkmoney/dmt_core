@@ -92,6 +92,8 @@ apply_operations(
             Error
     end.
 
+%% TO DO: Add tests for revert_operations
+
 -spec revert_operations([operation()], domain()) -> {ok, domain()} | {error, operation_conflict()}.
 revert_operations([], Domain) ->
     {ok, Domain};
