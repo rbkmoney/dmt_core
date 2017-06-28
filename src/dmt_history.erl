@@ -10,13 +10,13 @@
 -type version() :: dmsl_domain_config_thrift:'Version'().
 -type snapshot() :: dmsl_domain_config_thrift:'Snapshot'().
 
--spec head(history()) -> snapshot().
+-spec head(history()) -> {ok, snapshot()} | {error, dmt_domain:operation_conflict()}.
 head(History) ->
     head(History, #'Snapshot'{version = 0, domain = dmt_domain:new()}).
 
--spec head(history(), snapshot()) -> snapshot().
+-spec head(history(), snapshot()) -> {ok, snapshot()} | {error, dmt_domain:operation_conflict()}.
 head(History, Snapshot) when map_size(History) =:= 0 ->
-    Snapshot;
+    {ok, Snapshot};
 head(History, Snapshot) ->
     Head = lists:max(maps:keys(History)),
     travel(Head, History, Snapshot).
