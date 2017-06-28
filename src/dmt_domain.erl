@@ -95,8 +95,22 @@ apply_operations(
 -spec revert_operations([operation()], domain()) -> {ok, domain()} | {error, operation_conflict()}.
 revert_operations([], Domain) ->
     {ok, Domain};
-revert_operations([Operation | Rest], Domain) ->
-    case apply_operations([Operation], Domain) of
+revert_operations([{insert, #'InsertOp'{object = Object}} | Rest], Domain) ->
+    case apply_operations([{remove, #'RemoveOp'{object = Object}}], Domain) of
+        {ok, NewDomain} ->
+            revert_operations(Rest, NewDomain);
+        {error, _} = Error ->
+            Error
+    end;
+revert_operations([{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest], Domain) ->
+    case apply_operations([{update, #'UpdateOp'{old_object = NewObject, new_object = OldObject}}], Domain) of
+        {ok, NewDomain} ->
+            revert_operations(Rest, NewDomain);
+        {error, _} = Error ->
+            Error
+    end;
+revert_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
+    case apply_operations([{insert, #'InsertOp'{object = Object}}], Domain) of
         {ok, NewDomain} ->
             revert_operations(Rest, NewDomain);
         {error, _} = Error ->
