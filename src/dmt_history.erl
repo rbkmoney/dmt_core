@@ -21,17 +21,10 @@ head(History, Snapshot) ->
     Head = lists:max(maps:keys(History)),
     travel(Head, History, Snapshot).
 
--spec travel(version(), history(), snapshot()) ->
-    {ok, snapshot()} |
-    {error,
-        {object_already_exists, dmt_domain:object_ref()} |
-        {object_not_found, dmt_domain:object_ref()} |
-        {object_reference_mismatch, dmt_domain:object_ref()} |
-        {objects_not_exist, [{dmt_domain:object_ref(), [dmt_domain:object_ref()]}]}
-    }.
+-spec travel(version(), history(), snapshot()) -> {ok, snapshot()} | {error, dmt_domain:operation_conflict()}.
 travel(To, _History, #'Snapshot'{version = From} = Snapshot)
 when To =:= From ->
-    Snapshot;
+    {ok, Snapshot};
 travel(To, History, #'Snapshot'{version = From, domain = Domain})
 when To > From ->
     #'Commit'{ops = Ops} = maps:get(From + 1, History),

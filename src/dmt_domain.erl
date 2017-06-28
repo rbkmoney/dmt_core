@@ -10,7 +10,7 @@
 
 -define(DOMAIN, dmsl_domain_thrift).
 
--export_type([object_ref/0]).
+-export_type([operation_conflict/0]).
 
 %%
 
@@ -18,6 +18,11 @@
 -type object_ref() :: dmsl_domain_thrift:'Reference'().
 -type domain() :: dmsl_domain_thrift:'Domain'().
 -type domain_object() :: dmsl_domain_thrift:'DomainObject'().
+-type operation_conflict() ::
+    {object_already_exists, object_ref()} |
+    {object_not_found, object_ref()} |
+    {object_reference_mismatch, object_ref()} |
+    {objects_not_exist, [{object_ref(), [object_ref()]}]}.
 
 -spec new() ->
     domain().
@@ -30,20 +35,14 @@ get_object(ObjectReference, Domain) ->
     maps:find(ObjectReference, Domain).
 
 -spec apply_operations([operation()], domain()) ->
-    {ok, domain()} |
-    {error,
-        {object_already_exists, object_ref()} |
-        {object_not_found, object_ref()} |
-        {object_reference_mismatch, object_ref()} |
-        {objects_not_exist, [{object_ref(), [object_ref()]}]}
-    }.
+    {ok, domain()} | {error, operation_conflict()}.
 apply_operations(Operations, Domain) ->
     apply_operations(Operations, Domain, #{}).
 
 apply_operations([], Domain, Touched) ->
     case integrity_check(Domain, Touched) of
         ok ->
-            Domain;
+            {ok, Domain};
         {error, _} = Error ->
             Error
     end;
@@ -93,31 +92,11 @@ apply_operations(
             Error
     end.
 
--spec revert_operations([operation()], domain()) ->
-    {ok, domain()} |
-    {error,
-        {object_already_exists, object_ref()} |
-        {object_not_found, object_ref()} |
-        {object_reference_mismatch, object_ref()}
-    }.
+-spec revert_operations([operation()], domain()) -> {ok, domain()} | {error, operation_conflict()}.
 revert_operations([], Domain) ->
-    Domain;
-revert_operations([{insert, #'InsertOp'{object = Object}} | Rest], Domain) ->
-    case delete(Object, Domain) of
-        {ok, NewDomain} ->
-            revert_operations(Rest, NewDomain);
-        {error, _} = Error ->
-            Error
-    end;
-revert_operations([{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest], Domain) ->
-    case update(NewObject, OldObject, Domain) of
-        {ok, NewDomain} ->
-            revert_operations(Rest, NewDomain);
-        {error, _} = Error ->
-            Error
-    end;
-revert_operations([{remove, #'RemoveOp'{object = Object}} | Rest], Domain) ->
-    case insert(Object, Domain) of
+    {ok, Domain};
+revert_operations([Operation | Rest], Domain) ->
+    case apply_operations([Operation], Domain) of
         {ok, NewDomain} ->
             revert_operations(Rest, NewDomain);
         {error, _} = Error ->

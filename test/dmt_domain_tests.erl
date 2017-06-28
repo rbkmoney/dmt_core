@@ -15,7 +15,7 @@ basic_flow_test_() ->
     Fixture = construct_fixture(),
     [
         ?_assertEqual(
-            Fixture,
+            {ok, Fixture},
             dmt_domain:apply_operations([], Fixture)
         ),
         ?_assertEqual(
@@ -31,7 +31,7 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([?remove(?dummy(42))], Fixture)
         ),
         ?_assertMatch(
-            #{},
+            {ok, #{}},
             dmt_domain:apply_operations([?remove(?dummy_link(1337, 42)), ?remove(?dummy(42)), ?remove(?dummy(44))], Fixture)
         ),
         ?_assertEqual(
@@ -47,7 +47,7 @@ basic_flow_test_() ->
             dmt_domain:apply_operations([?update(?dummy_link(1337, 42), ?dummy_link(1337, 0))], Fixture)
         ),
         ?_assertMatch(
-            #{},
+            {ok, #{}},
             dmt_domain:apply_operations([?update(?dummy_link(1337, 42), ?dummy_link(1337, 44))], Fixture)
         ),
         ?_assertEqual(
@@ -149,7 +149,7 @@ batch_link_test() ->
         }
     }},
     ?assertMatch(
-        #{},
+        {ok, #{}},
         dmt_domain:apply_operations([?insert(Sas), ?insert(Currency)], #{})
     ).
 
@@ -191,7 +191,7 @@ wrong_spec_order_test() ->
         }
     },
     ?assertMatch(
-        #{},
+        {ok, #{}},
         dmt_domain:apply_operations(
             [?insert(Terminal), ?insert(Currency), ?insert(PaymentMethod)],
             construct_fixture()
