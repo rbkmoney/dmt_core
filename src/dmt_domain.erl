@@ -7,6 +7,8 @@
 -export([get_object/2]).
 -export([apply_operations/2]).
 -export([revert_operations/2]).
+-export([fold/3]).
+-export([insert/2]).
 
 -define(DOMAIN, dmsl_domain_thrift).
 
@@ -23,6 +25,7 @@
     {object_not_found, object_ref()} |
     {object_reference_mismatch, object_ref()} |
     {objects_not_exist, [{object_ref(), [object_ref()]}]}.
+-type fold_function() :: fun((object_ref(), domain_object(), AccIn :: term()) -> AccOut :: term()).
 
 -spec new() ->
     domain().
@@ -104,6 +107,11 @@ revert_operations([Operation | Rest], Domain) ->
         {error, _} = Error ->
             Error
     end.
+
+-spec fold(fold_function(), term(), domain()) -> term().
+
+fold(Fun, AccIn, Domain) ->
+    maps:fold(Fun, AccIn, Domain).
 
 -spec insert(domain_object(), domain()) -> {ok, domain()} | {error, {object_already_exists, object_ref()}}.
 insert(Object, Domain) ->
