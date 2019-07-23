@@ -4,7 +4,7 @@
 -export([head/2]).
 -export([travel/3]).
 
--include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
 -type history() :: dmsl_domain_config_thrift:'History'().
 -type version() :: dmsl_domain_config_thrift:'Version'().
