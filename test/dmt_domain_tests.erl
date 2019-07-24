@@ -1,6 +1,6 @@
 -module(dmt_domain_tests).
 -include_lib("eunit/include/eunit.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include("dmt_domain_tests_helper.hrl").
 
 -type testcase() :: {_, fun()}.

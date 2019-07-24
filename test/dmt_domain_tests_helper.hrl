@@ -1,8 +1,8 @@
 -ifndef(dmt_domain_tests_helper_included__).
 -define(dmt_domain_tests_helper_included__, yeah).
 
--include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -define(dummy(ID),
     {dummy, #domain_DummyObject{
