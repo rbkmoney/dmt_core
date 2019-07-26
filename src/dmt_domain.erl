@@ -1,5 +1,4 @@
 -module(dmt_domain).
--include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
 %%
 
@@ -16,7 +15,10 @@
 
 %%
 
--type operation() :: dmsl_domain_config_thrift:'Operation'().
+-type operation() ::
+    {insert, domain_object()} |
+    {remove, domain_object()} |
+    {update, domain_object(), domain_object()}.
 -type object_ref() :: dmsl_domain_thrift:'Reference'().
 -type domain() :: dmsl_domain_thrift:'Domain'().
 -type domain_object() :: dmsl_domain_thrift:'DomainObject'().
@@ -50,7 +52,7 @@ apply_operations([], Domain, Touched) ->
             Error
     end;
 apply_operations(
-    [{insert, #'InsertOp'{object = Object}} | Rest],
+    [{insert, Object} | Rest],
     Domain,
     Touched
 ) ->
@@ -65,7 +67,7 @@ apply_operations(
             Error
     end;
 apply_operations(
-    [{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest],
+    [{update, OldObject, NewObject} | Rest],
     Domain,
     Touched
 ) ->
@@ -80,7 +82,7 @@ apply_operations(
             Error
     end;
 apply_operations(
-    [{remove, #'RemoveOp'{object = Object}} | Rest],
+    [{remove, Object} | Rest],
     Domain,
     Touched
 ) ->
@@ -155,34 +157,21 @@ delete(Object, Domain) ->
     end.
 
 integrity_check(Domain, Touched) when is_map(Touched) ->
-    integrity_check(Domain, maps:values(Touched));
+    integrity_check(Domain, maps:values(Touched), []).
 
-integrity_check(_Domain, []) ->
+integrity_check(_Domain, [], []) ->
     ok;
 
-integrity_check(Domain, [{insert, Object} | Rest]) ->
-    case check_correct_refs(Object, Domain) of
-        ok ->
-            integrity_check(Domain, Rest);
-        {error, _} = Error ->
-            Error
-    end;
+integrity_check(_Domain, [], ObjectsNotExist) ->
+    {error, {objects_not_exist, ObjectsNotExist}};
 
-integrity_check(Domain, [{update, Object} | Rest]) ->
-    case check_correct_refs(Object, Domain) of
-        ok ->
-            integrity_check(Domain, Rest);
-        {error, _} = Error ->
-            Error
-    end;
+integrity_check(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
+    ObjectsNotExist = check_correct_refs(Object, Domain),
+    integrity_check(Domain, Rest, Acc ++ ObjectsNotExist);
 
-integrity_check(Domain, [{delete, Object} | Rest]) ->
-    case check_no_refs(Object, Domain) of
-        ok ->
-            integrity_check(Domain, Rest);
-        {error, _} = Error ->
-            Error
-    end.
+integrity_check(Domain, [{delete, Object} | Rest], Acc) ->
+    ObjectsNotExist = check_no_refs(Object, Domain),
+    integrity_check(Domain, Rest, Acc ++ ObjectsNotExist).
 
 get_field(Field, Struct, StructInfo) when is_atom(Field) ->
     FieldIndex = get_field_index(Field, StructInfo),
@@ -216,22 +205,15 @@ check_correct_refs(DomainObject, Domain) ->
         end,
         references(DomainObject)
     ),
-    case NonExistent of
-        [] ->
-            ok;
-        _ ->
-            Ref = get_ref(DomainObject),
-            {error, {objects_not_exist,
-                lists:map(fun(X) -> {X, [Ref]} end, NonExistent)
-            }}
-    end.
+    Ref = get_ref(DomainObject),
+    lists:map(fun(X) -> {X, [Ref]} end, NonExistent).
 
 check_no_refs(DomainObject, Domain) ->
     case referenced_by(DomainObject, Domain) of
         [] ->
-            ok;
+            [];
         Referenced ->
-            {error, {objects_not_exist, [{get_ref(DomainObject), Referenced}]}}
+            [{get_ref(DomainObject), Referenced}]
     end.
 
 referenced_by(DomainObject, Domain) ->
@@ -259,8 +241,12 @@ references(Object, FieldType) ->
 references(undefined, _StructInfo, Refs) ->
     Refs;
 references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when is_list(FieldsInfo) ->
-    {_, _, Type, _, _} = get_field_info(Tag, StructInfo),
-    check_reference_type(Object, Type, Refs);
+    case get_field_info(Tag, StructInfo) of
+        false ->
+            erlang:error({<<"field info not found">>, Tag, StructInfo});
+        {_, _, Type, _, _} ->
+            check_reference_type(Object, Type, Refs)
+    end;
 references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
     lists:foldl(
         fun
@@ -338,9 +324,9 @@ is_reference_type(Type, [{_, _, Type, Tag, _} | _Rest]) ->
 is_reference_type(Type, [_ | Rest]) ->
     is_reference_type(Type, Rest).
 
-invert_operation({insert, #'InsertOp'{object = Object}}) ->
-    {remove, #'RemoveOp'{object = Object}};
-invert_operation({update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}}) ->
-    {update, #'UpdateOp'{old_object = NewObject, new_object = OldObject}};
-invert_operation({remove, #'RemoveOp'{object = Object}}) ->
-    {insert, #'InsertOp'{object = Object}}.
+invert_operation({insert, Object}) ->
+    {remove, Object};
+invert_operation({update, OldObject, NewObject}) ->
+    {update, NewObject, OldObject};
+invert_operation({remove, Object}) ->
+    {insert, Object}.

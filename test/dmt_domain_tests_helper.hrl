@@ -1,7 +1,6 @@
 -ifndef(dmt_domain_tests_helper_included__).
 -define(dmt_domain_tests_helper_included__, yeah).
 
--include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -define(dummy(ID),
@@ -19,8 +18,9 @@
 ).
 
 -define(category_ref(ID), #domain_CategoryRef{id = ID}).
+-define(ext_account_set_ref(ID), #domain_ExternalAccountSetRef{id = ID}).
+-define(pinst_ref(ID), #domain_PaymentInstitutionRef{id = ID}).
 -define(provider_ref(ID), #domain_ProviderRef{id = ID}).
--define(party_prototype_ref(ID), #domain_PartyPrototypeRef{id = ID}).
 -define(system_account_set_ref(ID), #domain_SystemAccountSetRef{id = ID}).
 -define(currency_ref(ID), #domain_CurrencyRef{symbolic_code = ID}).
 -define(sas_ref(ID), #domain_SystemAccountSetRef{id = ID}).
@@ -28,10 +28,6 @@
 -define(payment_method_ref(ID), #domain_PaymentMethodRef{id = ID}).
 -define(contract_template_ref(ID), #domain_ContractTemplateRef{id = ID}).
 -define(inspector_ref(ID), #domain_InspectorRef{id = ID}).
-
-
--define(terminal_account(Cur),
-    #domain_TerminalAccount{currency = ?currency_ref(Cur), settlement = 4242}).
 
 -define(category(ID, Name, Description),
     {category, #domain_CategoryObject{
@@ -43,8 +39,8 @@
     }
 }).
 
--define(insert(O), {insert, #'InsertOp'{object = O}}).
--define(remove(O), {remove, #'RemoveOp'{object = O}}).
--define(update(O1, O2), {update, #'UpdateOp'{old_object = O1, new_object = O2}}).
+-define(insert(O), {insert, O}).
+-define(remove(O), {remove, O}).
+-define(update(Old, New), {update, Old, New}).
 
 -endif.

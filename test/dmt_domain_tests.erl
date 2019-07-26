@@ -1,6 +1,5 @@
 -module(dmt_domain_tests).
 -include_lib("eunit/include/eunit.hrl").
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include("dmt_domain_tests_helper.hrl").
 
 -type testcase() :: {_, fun()}.
@@ -68,7 +67,19 @@ nested_links_test() ->
     DomainObject = #domain_GlobalsObject{
         ref = #domain_GlobalsRef{},
         data = #domain_Globals{
-            party_prototype = ?party_prototype_ref(0),
+            external_account_set = {value, ?ext_account_set_ref(1)},
+            payment_institutions = [
+                ?pinst_ref(1),
+                ?pinst_ref(2)
+            ]
+        }
+    },
+    PaymentInstitution = #domain_PaymentInstitutionObject{
+        ref = ?pinst_ref(1),
+        data = #domain_PaymentInstitution{
+            name = <<"PaymentInstitution">>,
+            system_account_set = {value, ?system_account_set_ref(0)},
+            default_contract_template = {value, ?contract_template_ref(1)},
             providers = {
                 decisions,
                 [
@@ -88,7 +99,6 @@ nested_links_test() ->
                                 ?provider_ref(0)
                             ])
                         }
-
                     },
                     #domain_ProviderDecision{
                         if_ = {
@@ -105,27 +115,29 @@ nested_links_test() ->
                     }
                 ]
             },
-            system_account_set = {value, ?system_account_set_ref(0)},
             inspector = {value, ?inspector_ref(1)},
-            default_contract_template = ?contract_template_ref(1)
+            realm = test,
+            residences = []
         }
     },
+    Ops = [?insert({globals, DomainObject}), ?insert({payment_institution, PaymentInstitution})],
     ?assertEqual(
         {error,
             {objects_not_exist,
                 [
-                    {{contract_template, ?contract_template_ref(1)}, [{globals,{domain_GlobalsRef}}]},
-                    {{inspector, ?inspector_ref(1)}, [{globals,{domain_GlobalsRef}}]},
-                    {{system_account_set, ?system_account_set_ref(0)}, [{globals,{domain_GlobalsRef}}]},
-                    {{provider, ?provider_ref(2)}, [{globals,{domain_GlobalsRef}}]},
-                    {{provider, ?provider_ref(1)}, [{globals,{domain_GlobalsRef}}]},
-                    {{provider, ?provider_ref(0)}, [{globals,{domain_GlobalsRef}}]},
-                    {{category, ?category_ref(0)}, [{globals,{domain_GlobalsRef}}]},
-                    {{party_prototype, ?party_prototype_ref(0)}, [{globals,{domain_GlobalsRef}}]}
+                    {{payment_institution, ?pinst_ref(2)}, [{globals, #domain_GlobalsRef{}}]},
+                    {{external_account_set, ?ext_account_set_ref(1)}, [{globals, #domain_GlobalsRef{}}]},
+                    {{inspector, ?inspector_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
+                    {{provider, ?provider_ref(2)}, [{payment_institution, ?pinst_ref(1)}]},
+                    {{provider, ?provider_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
+                    {{provider, ?provider_ref(0)}, [{payment_institution, ?pinst_ref(1)}]},
+                    {{category, ?category_ref(0)}, [{payment_institution, ?pinst_ref(1)}]},
+                    {{contract_template, ?contract_template_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
+                    {{system_account_set, ?system_account_set_ref(0)}, [{payment_institution, ?pinst_ref(1)}]}
                 ]
             }
         },
-        dmt_domain:apply_operations([?insert({globals, DomainObject})], construct_fixture())
+        dmt_domain:apply_operations(Ops, construct_fixture())
     ).
 
 batch_link_test() ->
@@ -161,12 +173,13 @@ wrong_spec_order_test() ->
             data = #domain_Terminal{
                 name = <<"Terminal 1">>,
                 description = <<"Test terminal 1">>,
-                payment_method = #domain_PaymentMethodRef{id = {bank_card, visa}},
-                category = ?category_ref(1),
-                cash_flow = [],
-                account = ?terminal_account(<<"USD">>),
                 options = #{
                     <<"override">> => <<"Terminal 1">>
+                },
+                terms = #domain_PaymentsProvisionTerms{
+                    categories = {value, [?category_ref(1)]},
+                    payment_methods = {value, [#domain_PaymentMethodRef{id = {bank_card, visa}}]},
+                    cash_flow = {value, []}
                 }
             }
         }
