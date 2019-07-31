@@ -1,4 +1,5 @@
 -module(dmt_domain).
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
 %%
 
@@ -15,10 +16,7 @@
 
 %%
 
--type operation() ::
-    {insert, domain_object()} |
-    {remove, domain_object()} |
-    {update, domain_object(), domain_object()}.
+-type operation() :: dmsl_domain_config_thrift:'Operation'().
 -type object_ref() :: dmsl_domain_thrift:'Reference'().
 -type domain() :: dmsl_domain_thrift:'Domain'().
 -type domain_object() :: dmsl_domain_thrift:'DomainObject'().
@@ -52,7 +50,7 @@ apply_operations([], Domain, Touched) ->
             Error
     end;
 apply_operations(
-    [{insert, Object} | Rest],
+    [{insert, #'InsertOp'{object = Object}} | Rest],
     Domain,
     Touched
 ) ->
@@ -67,7 +65,7 @@ apply_operations(
             Error
     end;
 apply_operations(
-    [{update, OldObject, NewObject} | Rest],
+    [{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest],
     Domain,
     Touched
 ) ->
@@ -82,7 +80,7 @@ apply_operations(
             Error
     end;
 apply_operations(
-    [{remove, Object} | Rest],
+    [{remove, #'RemoveOp'{object = Object}} | Rest],
     Domain,
     Touched
 ) ->
@@ -324,9 +322,9 @@ is_reference_type(Type, [{_, _, Type, Tag, _} | _Rest]) ->
 is_reference_type(Type, [_ | Rest]) ->
     is_reference_type(Type, Rest).
 
-invert_operation({insert, Object}) ->
-    {remove, Object};
-invert_operation({update, OldObject, NewObject}) ->
-    {update, NewObject, OldObject};
-invert_operation({remove, Object}) ->
-    {insert, Object}.
+invert_operation({insert, #'InsertOp'{object = Object}}) ->
+    {remove, #'RemoveOp'{object = Object}};
+invert_operation({update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}}) ->
+    {update, #'UpdateOp'{old_object = NewObject, new_object = OldObject}};
+invert_operation({remove, #'RemoveOp'{object = Object}}) ->
+    {insert, #'InsertOp'{object = Object}}.
