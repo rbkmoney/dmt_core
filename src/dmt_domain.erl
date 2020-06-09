@@ -143,21 +143,60 @@ remove(Object, Domain) ->
             {error, {object_not_found, ObjectReference}}
     end.
 
-integrity_check(Domain, Touched) when is_map(Touched) ->
-    integrity_check(Domain, maps:values(Touched), []).
+-type touch() :: {insert | update | remove, domain_object()}.
 
-integrity_check(_Domain, [], []) ->
+-spec integrity_check(domain(), [touch()]) ->
+    ok |
+    {error,
+        {objects_not_exist, [nonexistent_object()]} |
+        {object_reference_cycles, [[object_ref()]]}
+    }.
+integrity_check(Domain, Touched) when is_list(Touched) ->
+    % TODO
+    % Well I guess nothing (but the types) stops us from accumulating
+    % errors from every check, instead of just first failed
+    run_until_error([
+        fun () -> verify_integrity(Domain, Touched, []) end,
+        fun () -> verify_acyclicity(Domain, Touched, []) end
+    ]).
+
+run_until_error([CheckFun | Rest]) ->
+    case CheckFun() of
+        ok ->
+            run_until_error(Rest);
+        {error, _} = Error ->
+            Error
+    end;
+run_until_error([]) ->
+    ok.
+
+verify_integrity(_Domain, [], []) ->
     ok;
-integrity_check(_Domain, [], ObjectsNotExist) ->
+verify_integrity(_Domain, [], ObjectsNotExist) ->
     {error, {objects_not_exist, ObjectsNotExist}};
-
-integrity_check(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
+verify_integrity(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
     ObjectsNotExist = check_correct_refs(Object, Domain),
-    integrity_check(Domain, Rest, Acc ++ ObjectsNotExist);
-
-integrity_check(Domain, [{delete, Object} | Rest], Acc) ->
+    verify_integrity(Domain, Rest, Acc ++ ObjectsNotExist);
+verify_integrity(Domain, [{remove, Object} | Rest], Acc) ->
     ObjectsNotExist = check_no_refs(Object, Domain),
-    integrity_check(Domain, Rest, Acc ++ ObjectsNotExist).
+    verify_integrity(Domain, Rest, Acc ++ ObjectsNotExist).
+
+verify_acyclicity(_Domain, [], []) ->
+    ok;
+verify_acyclicity(_Domain, [], Cycles) ->
+    {error, {object_reference_cycles, Cycles}};
+verify_acyclicity(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
+    Ref = get_ref(Object),
+    Acc1 = case is_already_in_cycle(Ref, Acc) of
+        true  -> Acc;
+        false -> track_cycles(Object, [Ref], Acc, Domain)
+    end,
+    verify_acyclicity(Domain, Rest, Acc1);
+verify_acyclicity(Domain, [{remove, _} | Rest], Acc) ->
+    verify_acyclicity(Domain, Rest, Acc).
+
+is_already_in_cycle(Ref, Cycles) ->
+    lists:any(fun (Cycle) -> lists:member(Ref, Cycle) end, Cycles).
 
 check_correct_refs(DomainObject, Domain) ->
     NonExistent = lists:filter(
@@ -184,6 +223,32 @@ check_no_refs(DomainObject, Domain) ->
         Referenced ->
             [{get_ref(DomainObject), Referenced}]
     end.
+
+track_cycles(DomainObject, PathRev, CyclesAcc, Domain) ->
+    Path = lists:reverse(PathRev),
+    MaybeCycles = lists:map(
+        fun (Ref) ->
+            % NOTE
+            % {Ref, []} if no cycle found, {Ref, MinimalCycle = [_|_]} otherwise
+            {Ref, lists:dropwhile(fun (PathRef) -> Ref =/= PathRef end, Path)}
+        end,
+        references(DomainObject)
+    ),
+    lists:foldl(
+        fun
+            ({Ref, []}, Acc) ->
+                case get_object(Ref, Domain) of
+                    {ok, NextObject} ->
+                        track_cycles(NextObject, [Ref | PathRev], Acc, Domain);
+                    error ->
+                        Acc
+                end;
+            ({_Ref, Cycle}, Acc) ->
+                [Cycle | Acc]
+        end,
+        CyclesAcc,
+        MaybeCycles
+    ).
 
 referenced_by(DomainObject, Domain) ->
     Ref = get_ref(DomainObject),

@@ -6,9 +6,10 @@
 
 -spec test() -> _.
 -spec basic_flow_test_() -> [testcase()].
--spec nested_links_test() -> [testcase()].
--spec batch_link_test() -> [testcase()].
--spec wrong_spec_order_test() -> [testcase()].
+-spec nested_links_test() -> _.
+-spec batch_link_test() -> _.
+-spec wrong_spec_order_test() -> _.
+-spec reference_cycle_test_() -> [testcase()].
 
 basic_flow_test_() ->
     Fixture = construct_fixture(),
@@ -207,6 +208,75 @@ wrong_spec_order_test() ->
             construct_fixture()
         )
     ).
+
+reference_cycle_test_() ->
+    Fixture = construct_fixture(),
+    IDSelf = 42,
+    ID1 = 1,
+    ID2 = 2,
+    ID3 = 3,
+    Pred1 = {any_of, ?set([
+        {constant, true},
+        {condition, {category_is, ?category_ref(1)}},
+        {all_of, ?set([
+            {is_not, {criterion, ?criterion_ref(ID2)}}
+        ])}
+    ])},
+    Pred2 = {all_of, ?set([
+        {any_of, ?set([
+            {is_not, {condition, {shop_location_is, {url, <<"BLARG">>}}}},
+            {criterion, ?criterion_ref(ID3)},
+            {criterion, ?criterion_ref(ID1)}
+        ])}
+    ])},
+    Pred3 = {is_not, {criterion, ?criterion_ref(ID1)}},
+
+    [
+        ?_assertEqual(
+            {error, {invalid, {object_reference_cycles, [
+                [{criterion, ?criterion_ref(IDSelf)}]
+            ]}}},
+            dmt_domain:apply_operations(
+                [?insert(?criterion(IDSelf, <<"Root">>, {criterion, ?criterion_ref(IDSelf)}))],
+                Fixture
+            )
+        ),
+        ?_assertEqual(
+            {error, {invalid, {object_reference_cycles, [
+                [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2, ID3]]
+            ]}}},
+            dmt_domain:apply_operations(
+                [
+                    ?insert(?criterion(ID1, <<"There">>, Pred1)),
+                    ?insert(?criterion(ID2, <<"Be">>, Pred2)),
+                    ?insert(?criterion(ID3, <<"Dragons">>, Pred3))
+                ],
+                Fixture
+            )
+        ),
+        ?_assertEqual(
+            {error, {invalid, {object_reference_cycles, [
+                [{criterion, ?criterion_ref(ID)} || ID <- [ID2, ID1]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [ID2, ID3, ID1]]
+            ]}}},
+            begin
+                Criterion1 = ?criterion(ID1, <<"There">>, Pred1),
+                Criterion2 = ?criterion(ID2, <<"No">>, {constant, false}),
+                Criterion3 = ?criterion(ID3, <<"Dragons">>, Pred3),
+                Criterion2Next = ?criterion(ID2, <<"Be">>, Pred2),
+                {ok, Domain1} = dmt_domain:apply_operations(
+                    [?insert(Criterion1), ?insert(Criterion2), ?insert(Criterion3)],
+                    Fixture
+                ),
+                dmt_domain:apply_operations(
+                    [?update(Criterion2, Criterion2Next)],
+                    Domain1
+                )
+            end
+        )
+    ].
+
 %%
 
 construct_fixture() ->
