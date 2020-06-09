@@ -28,7 +28,7 @@
     {object_reference_mismatch, object_ref()}.
 -type operation_invalid() ::
     {objects_not_exist, [nonexistent_object()]} |
-    {object_reference_cycle, [object_ref()]}.
+    {object_reference_cycles, [[object_ref()]]}.
 -type operation_error() ::
     {conflict, operation_conflict()} |
     {invalid, operation_invalid()}.
