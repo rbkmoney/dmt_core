@@ -48,57 +48,31 @@ get_object(ObjectReference, Domain) ->
 -spec apply_operations([operation()], domain()) ->
     {ok, domain()} | {error, operation_error()}.
 apply_operations(Operations, Domain) ->
-    apply_operations(Operations, Domain, #{}).
+    apply_operations(Operations, Domain, []).
 
 apply_operations([], Domain, Touched) ->
-    case integrity_check(Domain, Touched) of
+    case integrity_check(Domain, lists:reverse(Touched)) of
         ok ->
             {ok, Domain};
         {error, Invalid} ->
             {error, {invalid, Invalid}}
     end;
 apply_operations(
-    [{insert, #'InsertOp'{object = Object}} | Rest],
+    [Op | Rest],
     Domain,
     Touched
 ) ->
-    case insert(Object, Domain) of
+    {Result, Touch} = case Op of
+        {insert, #'InsertOp'{object = Object}} ->
+            {insert(Object, Domain), {insert, Object}};
+        {update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} ->
+            {update(OldObject, NewObject, Domain), {update, NewObject}};
+        {remove, #'RemoveOp'{object = Object}} ->
+            {remove(Object, Domain), {remove, Object}}
+    end,
+    case Result of
         {ok, NewDomain} ->
-            apply_operations(
-                Rest,
-                NewDomain,
-                Touched#{get_ref(Object) => {insert, Object}}
-            );
-        {error, Conflict} ->
-            {error, {conflict, Conflict}}
-    end;
-apply_operations(
-    [{update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} | Rest],
-    Domain,
-    Touched
-) ->
-    case update(OldObject, NewObject, Domain) of
-        {ok, NewDomain} ->
-            apply_operations(
-                Rest,
-                NewDomain,
-                Touched#{get_ref(NewObject) => {update, NewObject}}
-            );
-        {error, Conflict} ->
-            {error, {conflict, Conflict}}
-    end;
-apply_operations(
-    [{remove, #'RemoveOp'{object = Object}} | Rest],
-    Domain,
-    Touched
-) ->
-    case delete(Object, Domain) of
-        {ok, NewDomain} ->
-            apply_operations(
-                Rest,
-                NewDomain,
-                Touched#{get_ref(Object) => {delete, Object}}
-            );
+            apply_operations(Rest, NewDomain, [Touch | Touched]);
         {error, Conflict} ->
             {error, {conflict, Conflict}}
     end.
@@ -155,10 +129,10 @@ update(OldObject, NewObject, Domain) ->
             {error, {object_reference_mismatch, NewObjectReference}}
     end.
 
--spec delete(domain_object(), domain()) ->
+-spec remove(domain_object(), domain()) ->
     {ok, domain()} |
     {error, {object_not_found, object_ref()}}.
-delete(Object, Domain) ->
+remove(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:find(ObjectReference, Domain) of
         {ok, Object} ->
