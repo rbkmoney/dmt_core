@@ -4,6 +4,9 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
+-define(dummy_ref(ID), {dummy, #domain_DummyRef{id = ID}}).
+-define(dummy_link_ref(ID), {dummy_link, #domain_DummyLinkRef{id = ID}}).
+
 -define(dummy(ID),
     {dummy, #domain_DummyObject{
         ref = #domain_DummyRef{id = ID},
