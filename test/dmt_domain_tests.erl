@@ -121,23 +121,22 @@ nested_links_test() ->
         }
     },
     Ops = [?insert({globals, DomainObject}), ?insert({payment_institution, PaymentInstitution})],
+    Result = dmt_domain:apply_operations(Ops, construct_fixture()),
+    _ = ?assertMatch({error, {objects_not_exist, _}}, Result),
+    {error, {objects_not_exist, Missing}} = Result,
     ?assertEqual(
-        {error,
-            {objects_not_exist,
-                [
-                    {{payment_institution, ?pinst_ref(2)}, [{globals, #domain_GlobalsRef{}}]},
-                    {{external_account_set, ?ext_account_set_ref(1)}, [{globals, #domain_GlobalsRef{}}]},
-                    {{inspector, ?inspector_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
-                    {{provider, ?provider_ref(2)}, [{payment_institution, ?pinst_ref(1)}]},
-                    {{provider, ?provider_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
-                    {{provider, ?provider_ref(0)}, [{payment_institution, ?pinst_ref(1)}]},
-                    {{category, ?category_ref(0)}, [{payment_institution, ?pinst_ref(1)}]},
-                    {{contract_template, ?contract_template_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
-                    {{system_account_set, ?system_account_set_ref(0)}, [{payment_institution, ?pinst_ref(1)}]}
-                ]
-            }
-        },
-        dmt_domain:apply_operations(Ops, construct_fixture())
+        [
+            {{category, ?category_ref(0)}, [{payment_institution, ?pinst_ref(1)}]},
+            {{contract_template, ?contract_template_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
+            {{external_account_set, ?ext_account_set_ref(1)}, [{globals, #domain_GlobalsRef{}}]},
+            {{inspector, ?inspector_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
+            {{payment_institution, ?pinst_ref(2)}, [{globals, #domain_GlobalsRef{}}]},
+            {{provider, ?provider_ref(0)}, [{payment_institution, ?pinst_ref(1)}]},
+            {{provider, ?provider_ref(1)}, [{payment_institution, ?pinst_ref(1)}]},
+            {{provider, ?provider_ref(2)}, [{payment_institution, ?pinst_ref(1)}]},
+            {{system_account_set, ?system_account_set_ref(0)}, [{payment_institution, ?pinst_ref(1)}]}
+        ],
+        lists:sort(Missing)
     ).
 
 batch_link_test() ->
