@@ -185,31 +185,6 @@ integrity_check(Domain, [{delete, Object} | Rest], Acc) ->
     ObjectsNotExist = check_no_refs(Object, Domain),
     integrity_check(Domain, Rest, Acc ++ ObjectsNotExist).
 
-get_field(Field, Struct, StructInfo) when is_atom(Field) ->
-    FieldIndex = get_field_index(Field, StructInfo),
-    element(FieldIndex, Struct).
-
-get_struct_info(StructName) ->
-    dmsl_domain_thrift:struct_info(StructName).
-
-get_field_info(Field, {struct, _StructType, FieldsInfo}) ->
-    lists:keyfind(Field, 4, FieldsInfo).
-
-get_field_index(Field, {struct, _StructType, FieldsInfo}) ->
-    get_field_index(Field, mark_fields(FieldsInfo));
-
-get_field_index(_Field, []) ->
-    false;
-
-get_field_index(Field, [F | Rest]) ->
-    case F of
-        {I, {_, _, _, Field, _}} -> I;
-        _ -> get_field_index(Field, Rest)
-    end.
-
-mark_fields(FieldsInfo) ->
-    lists:zip(lists:seq(2, 1 + length(FieldsInfo)), FieldsInfo).
-
 check_correct_refs(DomainObject, Domain) ->
     NonExistent = lists:filter(
         fun(E) ->
@@ -219,6 +194,14 @@ check_correct_refs(DomainObject, Domain) ->
     ),
     Ref = get_ref(DomainObject),
     lists:map(fun(X) -> {X, [Ref]} end, NonExistent).
+
+object_exists(Ref, Domain) ->
+    case get_object(Ref, Domain) of
+        {ok, _Object} ->
+            true;
+        error ->
+            false
+    end.
 
 check_no_refs(DomainObject, Domain) ->
     case referenced_by(DomainObject, Domain) of
@@ -241,14 +224,12 @@ referenced_by(DomainObject, Domain) ->
         Domain
     ).
 
-references(DomainObject = {Tag, _Object}) ->
-    ObjectStructInfo = get_domain_object_schema(Tag),
-    Data = get_data(DomainObject),
-    {_, _, DataType, _, _} = get_field_info(data, ObjectStructInfo),
+references(DomainObject) ->
+    {DataType, Data} = get_data(DomainObject),
     references(Data, DataType).
 
-references(Object, FieldType) ->
-    references(Object, FieldType, []).
+references(Object, DataType) ->
+    references(Object, DataType, []).
 
 references(undefined, _StructInfo, Refs) ->
     Refs;
@@ -303,7 +284,8 @@ check_reference_type(Object, Type, Refs) ->
 
 -spec get_ref(domain_object()) -> object_ref().
 get_ref(DomainObject = {Tag, _Struct}) ->
-    {Tag, get_domain_object_field(ref, DomainObject)}.
+    {_Type, Ref} = get_domain_object_field(ref, DomainObject),
+    {Tag, Ref}.
 
 -spec get_data(domain_object()) -> any().
 get_data(DomainObject) ->
@@ -317,13 +299,32 @@ get_domain_object_schema(Tag) ->
     {_, _, {struct, _, {_, ObjectStructName}}, _, _} = get_field_info(Tag, SchemaInfo),
     get_struct_info(ObjectStructName).
 
-object_exists(Ref, Domain) ->
-    case get_object(Ref, Domain) of
-        {ok, _Object} ->
-            true;
-        error ->
-            false
+get_field(Field, Struct, StructInfo) when is_atom(Field) ->
+    {FieldIndex, {_, _, Type, _, _}} = get_field_index(Field, StructInfo),
+    {Type, element(FieldIndex, Struct)}.
+
+get_struct_info(StructName) ->
+    dmsl_domain_thrift:struct_info(StructName).
+
+get_field_info(Field, {struct, _StructType, FieldsInfo}) ->
+    lists:keyfind(Field, 4, FieldsInfo).
+
+get_field_index(Field, {struct, _StructType, FieldsInfo}) ->
+    get_field_index(Field, mark_fields(FieldsInfo));
+
+get_field_index(_Field, []) ->
+    false;
+
+get_field_index(Field, [F | Rest]) ->
+    case F of
+        {_, {_, _, _, Field, _}} = Index ->
+            Index;
+        _ ->
+            get_field_index(Field, Rest)
     end.
+
+mark_fields(FieldsInfo) ->
+    lists:zip(lists:seq(2, 1 + length(FieldsInfo)), FieldsInfo).
 
 is_reference_type(Type) ->
     {struct, union, StructInfo} = get_struct_info('Reference'),
