@@ -242,24 +242,27 @@ reference_cycle_test_() ->
             )
         ),
         ?_assertEqual(
-            {error, {invalid, {object_reference_cycles, [
+             [
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2]],
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2, ID3]]
-            ]}}},
-            dmt_domain:apply_operations(
-                [
-                    ?insert(?criterion(ID1, <<"There">>, Pred1)),
-                    ?insert(?criterion(ID2, <<"Be">>, Pred2)),
-                    ?insert(?criterion(ID3, <<"Dragons">>, Pred3))
-                ],
-                Fixture
-            )
+            ],
+            begin
+                {error, {invalid, {object_reference_cycles, Cycles}}} = dmt_domain:apply_operations(
+                    [
+                        ?insert(?criterion(ID1, <<"There">>, Pred1)),
+                        ?insert(?criterion(ID2, <<"Be">>, Pred2)),
+                        ?insert(?criterion(ID3, <<"Dragons">>, Pred3))
+                    ],
+                    Fixture
+                ),
+                lists:sort(Cycles)
+            end
         ),
         ?_assertEqual(
-            {error, {invalid, {object_reference_cycles, [
+            [
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID2, ID1]],
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID2, ID3, ID1]]
-            ]}}},
+            ],
             begin
                 Criterion1 = ?criterion(ID1, <<"There">>, Pred1),
                 Criterion2 = ?criterion(ID2, <<"No">>, {constant, false}),
@@ -269,10 +272,11 @@ reference_cycle_test_() ->
                     [?insert(Criterion1), ?insert(Criterion2), ?insert(Criterion3)],
                     Fixture
                 ),
-                dmt_domain:apply_operations(
+                {error, {invalid, {object_reference_cycles, Cycles}}} = dmt_domain:apply_operations(
                     [?update(Criterion2, Criterion2Next)],
                     Domain1
-                )
+                ),
+                lists:sort(Cycles)
             end
         )
     ].

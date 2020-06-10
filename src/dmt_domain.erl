@@ -225,29 +225,31 @@ check_no_refs(DomainObject, Domain) ->
     end.
 
 track_cycles(DomainObject, PathRev, CyclesAcc, Domain) ->
-    Path = lists:reverse(PathRev),
-    MaybeCycles = lists:map(
-        fun (Ref) ->
-            % NOTE
-            % {Ref, []} if no cycle found, {Ref, MinimalCycle = [_|_]} otherwise
-            {Ref, lists:dropwhile(fun (PathRef) -> Ref =/= PathRef end, Path)}
-        end,
-        references(DomainObject)
-    ),
+    Refs = references(DomainObject),
+    CycleRefs = [Ref || Ref <- Refs, lists:member(Ref, PathRev)],
+    Cycles = case CycleRefs of
+        [] ->
+            [];
+        _ ->
+            Path = lists:reverse(PathRev),
+            [lists:dropwhile(fun (PathRef) -> Ref =/= PathRef end, Path) || Ref <- CycleRefs]
+    end,
     lists:foldl(
-        fun
-            ({Ref, []}, Acc) ->
-                case get_object(Ref, Domain) of
-                    {ok, NextObject} ->
-                        track_cycles(NextObject, [Ref | PathRev], Acc, Domain);
-                    error ->
-                        Acc
-                end;
-            ({_Ref, Cycle}, Acc) ->
-                [Cycle | Acc]
+        fun (Ref, Acc) ->
+            case lists:member(Ref, CycleRefs) of
+                false ->
+                    case get_object(Ref, Domain) of
+                        {ok, NextObject} ->
+                            track_cycles(NextObject, [Ref | PathRev], Acc, Domain);
+                        error ->
+                            Acc
+                    end;
+                true ->
+                    Acc
+            end
         end,
-        CyclesAcc,
-        MaybeCycles
+        Cycles ++ CyclesAcc,
+        Refs
     ).
 
 referenced_by(DomainObject, Domain) ->
