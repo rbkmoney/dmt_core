@@ -238,12 +238,7 @@ track_cycles(DomainObject, PathRev, CyclesAcc, Domain) ->
         fun (Ref, Acc) ->
             case lists:member(Ref, CycleRefs) of
                 false ->
-                    case get_object(Ref, Domain) of
-                        {ok, NextObject} ->
-                            track_cycles(NextObject, [Ref | PathRev], Acc, Domain);
-                        error ->
-                            Acc
-                    end;
+                    track_cycles_by_ref(Ref, PathRev, Acc, Domain);
                 true ->
                     Acc
             end
@@ -251,6 +246,14 @@ track_cycles(DomainObject, PathRev, CyclesAcc, Domain) ->
         Cycles ++ CyclesAcc,
         Refs
     ).
+
+track_cycles_by_ref(Ref, PathRev, CyclesAcc, Domain) ->
+    case get_object(Ref, Domain) of
+        {ok, NextObject} ->
+            track_cycles(NextObject, [Ref | PathRev], CyclesAcc, Domain);
+        error ->
+            CyclesAcc
+    end.
 
 referenced_by(DomainObject, Domain) ->
     Ref = get_ref(DomainObject),
