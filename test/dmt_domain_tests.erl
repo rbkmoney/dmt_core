@@ -242,7 +242,7 @@ reference_cycle_test_() ->
             )
         ),
         ?_assertEqual(
-             [
+            [
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2]],
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2, ID3]]
             ],
