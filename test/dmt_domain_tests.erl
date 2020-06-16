@@ -10,6 +10,8 @@
 -spec batch_link_test() -> _.
 -spec wrong_spec_order_test() -> _.
 -spec reference_cycle_test_() -> [testcase()].
+-spec random_reference_cycle_test_() -> [testcase()].
+-spec complete_reference_cycle_test_() -> [testcase()].
 
 basic_flow_test_() ->
     Fixture = construct_fixture(),
@@ -230,7 +232,6 @@ reference_cycle_test_() ->
         ])}
     ])},
     Pred3 = {is_not, {criterion, ?criterion_ref(ID1)}},
-
     [
         ?_assertEqual(
             {error, {invalid, {object_reference_cycles, [
@@ -278,8 +279,80 @@ reference_cycle_test_() ->
                 ),
                 lists:sort(Cycles)
             end
+        ),
+        ?_assertEqual(
+            [
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3, 4]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 4]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 4, 3]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [3, 4]]
+            ],
+            begin
+                %% 1 ----→ 2
+                %% ↑ ↖     |
+                %% |   ╲   |
+                %% ↓     ╲ ↓
+                %% 4 ←---→ 3
+                C1 = criterion_w_refs(1, [2, 4]),
+                C2 = criterion_w_refs(2, [3]),
+                C3 = criterion_w_refs(3, [1, 4]),
+                C4 = criterion_w_refs(4, [1, 3]),
+                {error, {invalid, {object_reference_cycles, Cycles}}} = dmt_domain:apply_operations(
+                    [?insert(C) || C <- [C1, C2, C3, C4]],
+                    Fixture
+                ),
+                lists:sort(Cycles)
+            end
         )
     ].
+
+random_reference_cycle_test_() ->
+    N = 100,
+    E = round(N * 1.2), % conservative, bigger values may explode time complexity
+    Nodes = lists:seq(1, N),
+    Nr = rand:uniform(N),
+    Edges = lists:foldl(
+        fun ({U, V}, M) ->
+            maps:update_with(U, fun (As) -> [V | As] end, [V], M)
+        end,
+        #{},
+        [{Nr, Nr} | % ensure at least one cycle
+            [{rand:uniform(N), rand:uniform(N)} || _ <- lists:seq(1, E)]]
+    ),
+    Criterions = [criterion_w_refs(ID, maps:get(ID, Edges, [])) || ID <- Nodes],
+    ?_assertMatch(
+        {error, {invalid, {object_reference_cycles, _}}},
+        dmt_domain:apply_operations([?insert(C) || C <- Criterions], dmt_domain:new())
+    ).
+
+complete_reference_cycle_test_() ->
+    [
+        begin
+            Nodes = lists:seq(1, N),
+            Operations = [?insert(criterion_w_refs(ID, [ID1 || ID1 <- Nodes])) || ID <- Nodes],
+            {timeout, 10, ?_assertEqual(
+                %% Number of cycles in complete directed graph.
+                %% For each subset of K nodes there are (K-1)! cyclic permutations of this subset,
+                %% plus there are binom(N, K) different subsets for each K.
+                lists:sum([binom(N, K) * factorial(K - 1) || K <- lists:seq(1, N)]),
+                begin
+                    {error, {invalid, {object_reference_cycles, Cycles}}} =
+                        dmt_domain:apply_operations(Operations, dmt_domain:new()),
+                    length(Cycles)
+                end
+            )}
+        end || N <- lists:seq(1, 9)
+    ].
+
+binom(N, K) ->
+    factorial(N) div (factorial(K) * factorial(N - K)).
+
+factorial(0) -> 1;
+factorial(N) -> factorial(N - 1) * N.
+
+criterion_w_refs(ID, Refs) ->
+    ?criterion(ID, <<>>, {any_of, ?set([{criterion, ?criterion_ref(Ref)} || Ref <- Refs])}).
 
 %%
 
