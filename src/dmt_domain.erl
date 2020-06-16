@@ -218,10 +218,10 @@ check_no_refs(DomainObject, Domain) ->
     end.
 
 track_cycles_from(Ref, Object, Acc, Domain) ->
-    {_Found, Acc1, _Blocklist} = track_cycles_over(Ref, Object, Ref, [Ref], Acc, #{}, Domain),
+    {_Found, Acc1, _Blocklist} = track_cycles_over(Object, Ref, [Ref], Acc, #{}, Domain),
     {Acc1, maps:remove(Ref, Domain)}.
 
-track_cycles_over(Ref, DomainObject, Pivot, PathRev, Acc, Blocklist, Domain) ->
+track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Domain) ->
     Refs = references(DomainObject),
     {Found, Acc1, Blocklist1} = lists:foldl(
         fun (NextRef, {FAcc, CAcc, BLAcc}) ->
@@ -250,7 +250,7 @@ track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain) ->
             % first time here
             case get_object(Ref, Domain) of
                 {ok, Object} ->
-                    track_cycles_over(Ref, Object, Pivot, [Ref | PathRev], Acc, Blocklist, Domain);
+                    track_cycles_over(Object, Pivot, [Ref | PathRev], Acc, Blocklist, Domain);
                 error ->
                     {Found, Acc, Blocklist}
             end
