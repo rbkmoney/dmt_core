@@ -270,22 +270,17 @@ block_descendants(_Ref, [], Blocklist) ->
     Blocklist.
 
 unblock_node(Ref, Blocklist) ->
-    Blocklist1 = maps:remove({blocked, Ref}, Blocklist),
-    unblock_descendants(Ref, Blocklist1).
+    case maps:take({blocked, Ref}, Blocklist) of
+        {true, Blocklist1} ->
+            unblock_descendants(Ref, Blocklist1);
+        error ->
+            Blocklist
+    end.
 
 unblock_descendants(Ref, Blocklist) ->
     case maps:take(Ref, Blocklist) of
         {Descendants, Blocklist1} ->
-            ordsets:fold(
-                fun (DRef, TAcc) ->
-                    case is_blocked(DRef, TAcc) of
-                        true -> unblock_node(DRef, TAcc);
-                        false -> TAcc
-                    end
-                end,
-                Blocklist1,
-                Descendants
-            );
+            ordsets:fold(fun unblock_node/2, Blocklist1, Descendants);
         error ->
             Blocklist
     end.
