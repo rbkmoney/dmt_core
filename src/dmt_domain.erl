@@ -218,13 +218,10 @@ check_no_refs(DomainObject, Domain) ->
     end.
 
 track_cycles_from(Ref, Object, Acc, Domain) ->
-    % io:format(user, "==> ~p~n==> cycles: ~p~n~n", [Ref, Acc]),
     {_Found, Acc1, _Blocklist} = track_cycles_over(Ref, Object, Ref, [Ref], Acc, #{}, Domain),
-    % io:format(user, "<== ~p~n<== cycles (~p): ~p~n~n", [Ref, length(Acc1), Acc1]),
     {Acc1, maps:remove(Ref, Domain)}.
 
 track_cycles_over(Ref, DomainObject, Pivot, PathRev, Acc, Blocklist, Domain) ->
-    % io:format(user, "--> ~p~n--> path: ~p~n--> cycles: ~p~n--> blocklist: ~p~n~n", [Ref, PathRev, Acc, Blocklist]),
     Refs = references(DomainObject),
     {Found, Acc1, Blocklist1} = lists:foldl(
         fun (NextRef, {FAcc, CAcc, BLAcc}) ->
@@ -239,7 +236,6 @@ track_cycles_over(Ref, DomainObject, Pivot, PathRev, Acc, Blocklist, Domain) ->
         false ->
             block_descendants(Ref, Refs, Blocklist1)
     end,
-    % io:format(user, "<-- ~p~n<-- path: ~p~n<-- cycles: ~p~n<-- blocklist: ~p~n~n", [Ref, PathRev, Acc1, Blocklist2]),
     {Found, Acc1, Blocklist2}.
 
 track_edge(Ref, Ref, PathRev, _Found, Acc, Blocklist, _Domain) ->
