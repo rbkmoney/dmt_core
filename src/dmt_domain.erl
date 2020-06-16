@@ -186,17 +186,10 @@ verify_acyclicity(_Domain, [], []) ->
 verify_acyclicity(_Domain, [], Cycles) ->
     {error, {object_reference_cycles, Cycles}};
 verify_acyclicity(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
-    Ref = get_ref(Object),
-    Acc1 = case is_already_in_cycle(Ref, Acc) of
-        true  -> Acc;
-        false -> track_cycles(Object, [Ref], Acc, Domain)
-    end,
-    verify_acyclicity(Domain, Rest, Acc1);
+    {Acc1, DomainRest} = track_cycles_from(get_ref(Object), Object, Acc, Domain),
+    verify_acyclicity(DomainRest, Rest, Acc1);
 verify_acyclicity(Domain, [{remove, _} | Rest], Acc) ->
     verify_acyclicity(Domain, Rest, Acc).
-
-is_already_in_cycle(Ref, Cycles) ->
-    lists:any(fun (Cycle) -> lists:member(Ref, Cycle) end, Cycles).
 
 check_correct_refs(DomainObject, Domain) ->
     NonExistent = lists:filter(
@@ -224,35 +217,81 @@ check_no_refs(DomainObject, Domain) ->
             [{get_ref(DomainObject), Referenced}]
     end.
 
-track_cycles(DomainObject, PathRev, CyclesAcc, Domain) ->
-    Refs = references(DomainObject),
-    CycleRefs = [Ref || Ref <- Refs, lists:member(Ref, PathRev)],
-    Cycles = case CycleRefs of
-        [] ->
-            [];
-        _ ->
-            Path = lists:reverse(PathRev),
-            [lists:dropwhile(fun (PathRef) -> Ref =/= PathRef end, Path) || Ref <- CycleRefs]
-    end,
-    lists:foldl(
-        fun (Ref, Acc) ->
-            case lists:member(Ref, CycleRefs) of
-                false ->
-                    track_cycles_by_ref(Ref, PathRev, Acc, Domain);
-                true ->
-                    Acc
-            end
-        end,
-        Cycles ++ CyclesAcc,
-        Refs
-    ).
+track_cycles_from(Ref, Object, Acc, Domain) ->
+    % io:format(user, "==> ~p~n==> cycles: ~p~n~n", [Ref, Acc]),
+    {_Found, Acc1, _Blocklist} = track_cycles_over(Ref, Object, Ref, [Ref], Acc, #{}, Domain),
+    % io:format(user, "<== ~p~n<== cycles (~p): ~p~n~n", [Ref, length(Acc1), Acc1]),
+    {Acc1, maps:remove(Ref, Domain)}.
 
-track_cycles_by_ref(Ref, PathRev, CyclesAcc, Domain) ->
-    case get_object(Ref, Domain) of
-        {ok, NextObject} ->
-            track_cycles(NextObject, [Ref | PathRev], CyclesAcc, Domain);
+track_cycles_over(Ref, DomainObject, Pivot, PathRev, Acc, Blocklist, Domain) ->
+    % io:format(user, "--> ~p~n--> path: ~p~n--> cycles: ~p~n--> blocklist: ~p~n~n", [Ref, PathRev, Acc, Blocklist]),
+    Refs = references(DomainObject),
+    {Found, Acc1, Blocklist1} = lists:foldl(
+        fun (NextRef, {FAcc, CAcc, BLAcc}) ->
+            track_edge(NextRef, Pivot, PathRev, FAcc, CAcc, BLAcc, Domain)
+        end,
+        {false, Acc, block_node(Ref, Blocklist)},
+        Refs
+    ),
+    Blocklist2 = case Found of
+        true ->
+            unblock_node(Ref, Blocklist1);
+        false ->
+            block_descendants(Ref, Refs, Blocklist1)
+    end,
+    % io:format(user, "<-- ~p~n<-- path: ~p~n<-- cycles: ~p~n<-- blocklist: ~p~n~n", [Ref, PathRev, Acc1, Blocklist2]),
+    {Found, Acc1, Blocklist2}.
+
+track_edge(Ref, Ref, PathRev, _Found, Acc, Blocklist, _Domain) ->
+    Acc1 = [lists:reverse(PathRev) | Acc],
+    {true, Acc1, Blocklist};
+track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain) ->
+    case is_blocked(Ref, Blocklist) of
+        true ->
+            % blocked
+            {Found, Acc, Blocklist};
+        false ->
+            % first time here
+            case get_object(Ref, Domain) of
+                {ok, Object} ->
+                    track_cycles_over(Ref, Object, Pivot, [Ref | PathRev], Acc, Blocklist, Domain);
+                error ->
+                    {Found, Acc, Blocklist}
+            end
+    end.
+
+block_node(Ref, Blocklist) ->
+    Blocklist#{{blocked, Ref} => true}.
+
+is_blocked(Ref, Blocklist) ->
+    maps:get({blocked, Ref}, Blocklist, false).
+
+block_descendants(Ref, [DRef | Rest], Blocklist) ->
+    BlockedRefs = maps:get(DRef, Blocklist, ordsets:new()),
+    Blocklist1 = Blocklist#{DRef => ordsets:add_element(Ref, BlockedRefs)},
+    block_descendants(Ref, Rest, Blocklist1);
+block_descendants(_Ref, [], Blocklist) ->
+    Blocklist.
+
+unblock_node(Ref, Blocklist) ->
+    Blocklist1 = maps:remove({blocked, Ref}, Blocklist),
+    unblock_descendants(Ref, Blocklist1).
+
+unblock_descendants(Ref, Blocklist) ->
+    case maps:take(Ref, Blocklist) of
+        {Descendants, Blocklist1} ->
+            ordsets:fold(
+                fun (DRef, TAcc) ->
+                    case is_blocked(DRef, TAcc) of
+                        true -> unblock_node(DRef, TAcc);
+                        false -> TAcc
+                    end
+                end,
+                Blocklist1,
+                Descendants
+            );
         error ->
-            CyclesAcc
+            Blocklist
     end.
 
 referenced_by(DomainObject, Domain) ->
