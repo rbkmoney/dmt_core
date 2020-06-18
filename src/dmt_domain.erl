@@ -218,36 +218,78 @@ check_no_refs(DomainObject, Domain) ->
     end.
 
 track_cycles_from(Ref, Object, Acc, Domain) ->
+    %% NOTE
+    %%
+    %% This is an implementation of [Johnson's algorithm for enumerating
+    %% elementary cycles of a directed graph][1], simplified and adapted
+    %% for the functional setting. As far as we're aware it's best known
+    %% algorithm for the problem in terms of complexity, hovewer it's not
+    %% entirely clear how badly complexity was affected by our simplifications.
+    %%
+    %% First simplification is as follows. Instead of iterating over strongly
+    %% connected components of a whole graph we instead iterate only over
+    %% those nodes which were affected by last operation, one by one.
+    %% During each iteration we enumerate _all_ cycles passing through a node,
+    %% then remove this node (and all in-edges effectively) from the graph, so
+    %% that we will no longer track this node in following iterations.
+    %%
+    %% Second simplification stems from observation that blocked-by
+    %% relationships explicitly tracked with `B(v)` in the paper are in fact
+    %% implicitly tracked with an execution stack, when implemented
+    %% functionally.
+    %%
+    %% We assume that taking into account only last affected (added or updated)
+    %% nodes is safe by induction: obviously, there are no cycles in an empty
+    %% graph, and no operation introducing a cycle could succeed.
+    %%
+    %% [1]: https://www.cs.tufts.edu/comp/150GA/homeworks/hw1/Johnson%2075.PDF
     {_Found, Acc1, _Blocklist} = track_cycles_over(Object, Ref, [Ref], Acc, #{}, Domain),
     {Acc1, maps:remove(Ref, Domain)}.
 
 track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Domain) ->
+    %% NOTE
+    %% Returns _all_ cycles passing through the node `Pivot`.
+    %% This is essentially CIRCUIT(v) routine from the [paper][1].
     Refs = references(DomainObject),
-    {Found, Acc1, Blocklist1} = lists:foldl(
+    %% We begin by blocking current node so that any search passing through
+    %% this node (but not through `Pivot`) would terminate prematurely.
+    Blocklist1 = block_node(Ref, Blocklist),
+    {Found, Acc1, Blocklist2} = lists:foldl(
         fun (NextRef, {FAcc, CAcc, BLAcc}) ->
+            %% We iterate over adjacent nodes here, accumulating cycles and
+            %% blocklist. If _any_ cycle is found in any subgraph then `Found`
+            %% will become `true`.
             track_edge(NextRef, Pivot, PathRev, FAcc, CAcc, BLAcc, Domain)
         end,
-        {false, Acc, block_node(Ref, Blocklist)},
+        {false, Acc, Blocklist1},
         Refs
     ),
-    Blocklist2 = case Found of
+    Blocklist3 = case Found of
         true ->
-            unblock_node(Ref, Blocklist1);
+            %% We found a cycle. Great but now we have to unblock current node.
+            %% At this point it looks safe to assume that all of its ascendants
+            %% will be unblocked eventually while stack is unwinding.
+            unblock_node(Ref, Blocklist2);
         false ->
-            block_descendants(Ref, Refs, Blocklist1)
+            Blocklist2
     end,
-    {Found, Acc1, Blocklist2}.
+    {Found, Acc1, Blocklist3}.
 
 track_edge(Ref, Ref, PathRev, _Found, Acc, Blocklist, _Domain) ->
+    % We found a cycle passing through `Pivot`.
+    % That means we must return with `true` to a caller.
     Acc1 = [lists:reverse(PathRev) | Acc],
     {true, Acc1, Blocklist};
 track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain) ->
     case is_blocked(Ref, Blocklist) of
         true ->
-            % blocked
+            % Node is blocked.
+            % Either this is a dead end so there's no reason to go there, or
+            % this is a cycle not passing through `Pivot` and we'll find it
+            % eventually but later.
             {Found, Acc, Blocklist};
         false ->
-            % first time here
+            % First time here.
             case get_object(Ref, Domain) of
                 {ok, Object} ->
                     track_cycles_over(Object, Pivot, [Ref | PathRev], Acc, Blocklist, Domain);
@@ -257,33 +299,13 @@ track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain) ->
     end.
 
 block_node(Ref, Blocklist) ->
-    Blocklist#{{blocked, Ref} => true}.
+    Blocklist#{Ref => true}.
 
 is_blocked(Ref, Blocklist) ->
-    maps:get({blocked, Ref}, Blocklist, false).
-
-block_descendants(Ref, [DRef | Rest], Blocklist) ->
-    BlockedRefs = maps:get(DRef, Blocklist, ordsets:new()),
-    Blocklist1 = Blocklist#{DRef => ordsets:add_element(Ref, BlockedRefs)},
-    block_descendants(Ref, Rest, Blocklist1);
-block_descendants(_Ref, [], Blocklist) ->
-    Blocklist.
+    maps:get(Ref, Blocklist, false).
 
 unblock_node(Ref, Blocklist) ->
-    case maps:take({blocked, Ref}, Blocklist) of
-        {true, Blocklist1} ->
-            unblock_descendants(Ref, Blocklist1);
-        error ->
-            Blocklist
-    end.
-
-unblock_descendants(Ref, Blocklist) ->
-    case maps:take(Ref, Blocklist) of
-        {Descendants, Blocklist1} ->
-            ordsets:fold(fun unblock_node/2, Blocklist1, Descendants);
-        error ->
-            Blocklist
-    end.
+    maps:remove(Ref, Blocklist).
 
 referenced_by(DomainObject, Domain) ->
     Ref = get_ref(DomainObject),

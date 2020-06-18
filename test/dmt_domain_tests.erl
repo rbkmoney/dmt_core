@@ -233,6 +233,11 @@ reference_cycle_test_() ->
     ])},
     Pred3 = {is_not, {criterion, ?criterion_ref(ID1)}},
     [
+        %%   ┌──┐
+        %%   ∨  │
+        %% ┌──────┐
+        %% │  42  │
+        %% └──────┘
         ?_assertEqual(
             {error, {invalid, {object_reference_cycles, [
                 [{criterion, ?criterion_ref(IDSelf)}]
@@ -242,6 +247,13 @@ reference_cycle_test_() ->
                 Fixture
             )
         ),
+        %%   ┌─────────┐
+        %%   ∨         │
+        %% ┌───┐     ┌───┐     ┌───┐
+        %% │ 1 │ ──> │ 2 │ ──> │ 3 │
+        %% └───┘     └───┘     └───┘
+        %%   ∧                   │
+        %%   └───────────────────┘
         ?_assertEqual(
             [
                 [{criterion, ?criterion_ref(ID)} || ID <- [ID1, ID2]],
@@ -280,6 +292,18 @@ reference_cycle_test_() ->
                 lists:sort(Cycles)
             end
         ),
+        %%      ┌───┐      ┌───┐
+        %%   ┌> │ 1 │ ───> │ 2 │
+        %%   │  └───┘      └───┘
+        %%   │    ∧          │
+        %%   │    │          │
+        %%   │    │          │
+        %%   │    ∨          ∨
+        %%   │  ┌───┐      ┌───┐
+        %%   │  │ 4 │ <──> │ 3 │
+        %%   │  └───┘      └───┘
+        %%   │               │
+        %%   └───────────────┘
         ?_assertEqual(
             [
                 [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3]],
@@ -289,17 +313,51 @@ reference_cycle_test_() ->
                 [{criterion, ?criterion_ref(ID)} || ID <- [3, 4]]
             ],
             begin
-                %% 1 ----→ 2
-                %% ↑ ↖     |
-                %% |   ╲   |
-                %% ↓     ╲ ↓
-                %% 4 ←---→ 3
                 C1 = criterion_w_refs(1, [2, 4]),
                 C2 = criterion_w_refs(2, [3]),
                 C3 = criterion_w_refs(3, [1, 4]),
                 C4 = criterion_w_refs(4, [1, 3]),
                 {error, {invalid, {object_reference_cycles, Cycles}}} = dmt_domain:apply_operations(
                     [?insert(C) || C <- [C1, C2, C3, C4]],
+                    Fixture
+                ),
+                lists:sort(Cycles)
+            end
+        ),
+        %%             ┌─────────────────────────────┐
+        %%             │                             │
+        %%             │                             │
+        %%   ┌─────────┼─────────┐                   │
+        %%   │         │         ∨                   ∨
+        %% ┌───┐     ┌───┐     ┌───┐     ┌───┐     ┌───┐
+        %% │ 2 │ ──> │ 3 │ ──> │ 4 │ ──> │ 5 │ ──> │ 6 │ ─┐
+        %% └───┘     └───┘     └───┘     └───┘     └───┘  │
+        %%   ∧         │         │         ∧         ∧    │
+        %%   │         └─────────┼─────────┘         │    │
+        %%   │                   │                   │    │
+        %% ┌───┐                 │                   │    │
+        %% │ 1 │                 └───────────────────┘    │
+        %% └───┘                                          │
+        %%   ∧                                            │
+        %%   └────────────────────────────────────────────┘
+        ?_assertEqual(
+            [
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3, 4, 5, 6]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3, 4, 6]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3, 5, 6]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 3, 6]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 4, 5, 6]],
+                [{criterion, ?criterion_ref(ID)} || ID <- [1, 2, 4, 6]]
+            ],
+            begin
+                C1 = criterion_w_refs(1, [2]),
+                C2 = criterion_w_refs(2, [3, 4]),
+                C3 = criterion_w_refs(3, [4, 5, 6]),
+                C4 = criterion_w_refs(4, [5, 6]),
+                C5 = criterion_w_refs(5, [6]),
+                C6 = criterion_w_refs(6, [1]),
+                {error, {invalid, {object_reference_cycles, Cycles}}} = dmt_domain:apply_operations(
+                    [?insert(C) || C <- [C1, C2, C3, C4, C5, C6]],
                     Fixture
                 ),
                 lists:sort(Cycles)
