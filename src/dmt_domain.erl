@@ -157,7 +157,7 @@ integrity_check(Domain, Touched) when is_list(Touched) ->
     % errors from every check, instead of just first failed
     run_until_error([
         fun () -> verify_integrity(Domain, Touched, []) end,
-        fun () -> verify_acyclicity(Domain, Touched, []) end
+        fun () -> verify_acyclicity(Domain, Touched, {[], #{}}) end
     ]).
 
 run_until_error([CheckFun | Rest]) ->
@@ -181,13 +181,13 @@ verify_integrity(Domain, [{remove, Object} | Rest], Acc) ->
     ObjectsNotExist = check_no_refs(Object, Domain),
     verify_integrity(Domain, Rest, Acc ++ ObjectsNotExist).
 
-verify_acyclicity(_Domain, [], []) ->
+verify_acyclicity(_Domain, [], {[], _}) ->
     ok;
-verify_acyclicity(_Domain, [], Cycles) ->
+verify_acyclicity(_Domain, [], {Cycles, _}) ->
     {error, {object_reference_cycles, Cycles}};
 verify_acyclicity(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
-    {Acc1, DomainRest} = track_cycles_from(get_ref(Object), Object, Acc, Domain),
-    verify_acyclicity(DomainRest, Rest, Acc1);
+    Acc1 = track_cycles_from(get_ref(Object), Object, Acc, Domain),
+    verify_acyclicity(Domain, Rest, Acc1);
 verify_acyclicity(Domain, [{remove, _} | Rest], Acc) ->
     verify_acyclicity(Domain, Rest, Acc).
 
@@ -217,7 +217,7 @@ check_no_refs(DomainObject, Domain) ->
             [{get_ref(DomainObject), Referenced}]
     end.
 
-track_cycles_from(Ref, Object, Acc, Domain) ->
+track_cycles_from(Ref, Object, {Acc, Blocklist}, Domain) ->
     %% NOTE
     %%
     %% This is an implementation of [Johnson's algorithm for enumerating
@@ -243,8 +243,8 @@ track_cycles_from(Ref, Object, Acc, Domain) ->
     %% graph, and no operation introducing a cycle could succeed.
     %%
     %% [1]: https://www.cs.tufts.edu/comp/150GA/homeworks/hw1/Johnson%2075.PDF
-    {_Found, Acc1, _Blocklist} = track_cycles_over(Object, Ref, [Ref], Acc, #{}, Domain),
-    {Acc1, maps:remove(Ref, Domain)}.
+    {_Found, Acc1, _Blocklist} = track_cycles_over(Object, Ref, [Ref], Acc, Blocklist, Domain),
+    {Acc1, block_node(Ref, Blocklist)}.
 
 track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Domain) ->
     %% NOTE
