@@ -223,17 +223,17 @@ track_cycles_from(Ref, Object, {Acc, Blocklist}, Domain) ->
     %% This is an implementation of [Johnson's algorithm for enumerating
     %% elementary cycles of a directed graph][1], simplified and adapted
     %% for the functional setting. As far as we're aware it's best known
-    %% algorithm for the problem in terms of complexity, hovewer it's not
+    %% algorithm for the problem in terms of complexity, however, it's not
     %% entirely clear how badly complexity was affected by our simplifications.
     %%
-    %% First simplification is as follows. Instead of iterating over strongly
+    %% The first simplification is as follows. Instead of iterating over strongly
     %% connected components of a whole graph we instead iterate only over
-    %% those nodes which were affected by last operation, one by one.
+    %% those nodes which were affected by the last operation, one by one.
     %% During each iteration we enumerate _all_ cycles passing through a node,
     %% then remove this node (and all in-edges effectively) from the graph, so
     %% that we will no longer track this node in following iterations.
     %%
-    %% Second simplification stems from observation that blocked-by
+    %% The second simplification stems from the observation that blocked-by
     %% relationships explicitly tracked with `B(v)` in the paper are in fact
     %% implicitly tracked with an execution stack, when implemented
     %% functionally.
