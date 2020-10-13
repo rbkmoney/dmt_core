@@ -33,19 +33,19 @@ compile: submodules rebar-update
 	$(REBAR) compile
 
 xref: submodules
-	$(REBAR) xref
+	$(REBAR) as test xref
 
 lint:
 	elvis rock
 
 check_format:
-	$(REBAR) fmt -c
+	$(REBAR) as test fmt -c
 
 format:
 	$(REBAR) fmt -w
 
 dialyze:
-	$(REBAR) dialyzer
+	$(REBAR) as test dialyzer
 
 test:
 	$(REBAR) eunit
