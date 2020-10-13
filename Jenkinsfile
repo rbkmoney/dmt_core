@@ -2,7 +2,7 @@
 
 build('dmt_core', 'docker-host') {
   checkoutRepo()
-  loadBuildUtils()
+  loadBuildUtils("builtils")
 
   def pipeErlangLib
   runStage('load pipeline') {
