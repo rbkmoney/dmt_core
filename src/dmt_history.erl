@@ -22,11 +22,9 @@ head(History, Snapshot) ->
     travel(Head, History, Snapshot).
 
 -spec travel(version(), history(), snapshot()) -> {ok, snapshot()} | {error, dmt_domain:operation_error()}.
-travel(To, _History, #'Snapshot'{version = From} = Snapshot)
-when To =:= From ->
+travel(To, _History, #'Snapshot'{version = From} = Snapshot) when To =:= From ->
     {ok, Snapshot};
-travel(To, History, #'Snapshot'{version = From, domain = Domain})
-when To > From ->
+travel(To, History, #'Snapshot'{version = From, domain = Domain}) when To > From ->
     #'Commit'{ops = Ops} = maps:get(From + 1, History),
     case dmt_domain:apply_operations(Ops, Domain) of
         {ok, NewDomain} ->
@@ -38,8 +36,7 @@ when To > From ->
         {error, _} = Error ->
             Error
     end;
-travel(To, History, #'Snapshot'{version = From, domain = Domain})
-when To < From ->
+travel(To, History, #'Snapshot'{version = From, domain = Domain}) when To < From ->
     #'Commit'{ops = Ops} = maps:get(From, History),
     case dmt_domain:revert_operations(Ops, Domain) of
         {ok, NewDomain} ->

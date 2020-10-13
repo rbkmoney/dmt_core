@@ -40,8 +40,8 @@
             name = Name,
             description = Description
         }
-    }
-}).
+    }}
+).
 
 -define(criterion_ref(ID), #domain_CriterionRef{id = ID}).
 -define(criterion(ID, Name, Pred),
@@ -59,7 +59,10 @@
 -define(update(O1, O2), {update, #'UpdateOp'{old_object = O1, new_object = O2}}).
 
 -define(set(L),
-    (begin true = is_list(L), ordsets:from_list(L) end)
+    (begin
+        true = is_list(L),
+        ordsets:from_list(L)
+    end)
 ).
 
 -endif.

@@ -1,4 +1,5 @@
 -module(dmt_domain).
+
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
 %%
@@ -23,30 +24,29 @@
 
 -type nonexistent_object() :: {object_ref(), [object_ref()]}.
 -type operation_conflict() ::
-    {object_already_exists, object_ref()} |
-    {object_not_found, object_ref()} |
-    {object_reference_mismatch, object_ref()}.
+    {object_already_exists, object_ref()}
+    | {object_not_found, object_ref()}
+    | {object_reference_mismatch, object_ref()}.
+
 -type operation_invalid() ::
-    {objects_not_exist, [nonexistent_object()]} |
-    {object_reference_cycles, [[object_ref()]]}.
+    {objects_not_exist, [nonexistent_object()]}
+    | {object_reference_cycles, [[object_ref()]]}.
+
 -type operation_error() ::
-    {conflict, operation_conflict()} |
-    {invalid, operation_invalid()}.
+    {conflict, operation_conflict()}
+    | {invalid, operation_invalid()}.
 
 -type fold_function() :: fun((object_ref(), domain_object(), AccIn :: term()) -> AccOut :: term()).
 
--spec new() ->
-    domain().
+-spec new() -> domain().
 new() ->
     #{}.
 
--spec get_object(object_ref(), domain()) ->
-    {ok, domain_object()} | error.
+-spec get_object(object_ref(), domain()) -> {ok, domain_object()} | error.
 get_object(ObjectReference, Domain) ->
     maps:find(ObjectReference, Domain).
 
--spec apply_operations([operation()], domain()) ->
-    {ok, domain()} | {error, operation_error()}.
+-spec apply_operations([operation()], domain()) -> {ok, domain()} | {error, operation_error()}.
 apply_operations(Operations, Domain) ->
     apply_operations(Operations, Domain, []).
 
@@ -62,14 +62,15 @@ apply_operations(
     Domain,
     Touched
 ) ->
-    {Result, Touch} = case Op of
-        {insert, #'InsertOp'{object = Object}} ->
-            {insert(Object, Domain), {insert, Object}};
-        {update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} ->
-            {update(OldObject, NewObject, Domain), {update, NewObject}};
-        {remove, #'RemoveOp'{object = Object}} ->
-            {remove(Object, Domain), {remove, Object}}
-    end,
+    {Result, Touch} =
+        case Op of
+            {insert, #'InsertOp'{object = Object}} ->
+                {insert(Object, Domain), {insert, Object}};
+            {update, #'UpdateOp'{old_object = OldObject, new_object = NewObject}} ->
+                {update(OldObject, NewObject, Domain), {update, NewObject}};
+            {remove, #'RemoveOp'{object = Object}} ->
+                {remove(Object, Domain), {remove, Object}}
+        end,
     case Result of
         {ok, NewDomain} ->
             apply_operations(Rest, NewDomain, [Touch | Touched]);
@@ -91,13 +92,12 @@ revert_operations([Operation | Rest], Domain) ->
     end.
 
 -spec fold(fold_function(), term(), domain()) -> term().
-
 fold(Fun, AccIn, Domain) ->
     maps:fold(Fun, AccIn, Domain).
 
 -spec insert(domain_object(), domain()) ->
-    {ok, domain()} |
-    {error, {object_already_exists, object_ref()}}.
+    {ok, domain()}
+    | {error, {object_already_exists, object_ref()}}.
 insert(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:find(ObjectReference, Domain) of
@@ -108,11 +108,10 @@ insert(Object, Domain) ->
     end.
 
 -spec update(domain_object(), domain_object(), domain()) ->
-    {ok, domain()} |
-    {error,
-        {object_not_found, object_ref()} |
-        {object_reference_mismatch, object_ref()}
-    }.
+    {ok, domain()}
+    | {error,
+        {object_not_found, object_ref()}
+        | {object_reference_mismatch, object_ref()}}.
 update(OldObject, NewObject, Domain) ->
     ObjectReference = get_ref(OldObject),
     case get_ref(NewObject) of
@@ -130,8 +129,8 @@ update(OldObject, NewObject, Domain) ->
     end.
 
 -spec remove(domain_object(), domain()) ->
-    {ok, domain()} |
-    {error, {object_not_found, object_ref()}}.
+    {ok, domain()}
+    | {error, {object_not_found, object_ref()}}.
 remove(Object, Domain) ->
     ObjectReference = get_ref(Object),
     case maps:find(ObjectReference, Domain) of
@@ -146,18 +145,17 @@ remove(Object, Domain) ->
 -type touch() :: {insert | update | remove, domain_object()}.
 
 -spec integrity_check(domain(), [touch()]) ->
-    ok |
-    {error,
-        {objects_not_exist, [nonexistent_object()]} |
-        {object_reference_cycles, [[object_ref()]]}
-    }.
+    ok
+    | {error,
+        {objects_not_exist, [nonexistent_object()]}
+        | {object_reference_cycles, [[object_ref()]]}}.
 integrity_check(Domain, Touched) when is_list(Touched) ->
     % TODO
     % Well I guess nothing (but the types) stops us from accumulating
     % errors from every check, instead of just first failed
     run_until_error([
-        fun () -> verify_integrity(Domain, Touched, []) end,
-        fun () -> verify_acyclicity(Domain, Touched, {[], #{}}) end
+        fun() -> verify_integrity(Domain, Touched, []) end,
+        fun() -> verify_acyclicity(Domain, Touched, {[], #{}}) end
     ]).
 
 run_until_error([CheckFun | Rest]) ->
@@ -255,7 +253,7 @@ track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Doma
     %% this node (but not through `Pivot`) would terminate prematurely.
     Blocklist1 = block_node(Ref, Blocklist),
     {Found, Acc1, Blocklist2} = lists:foldl(
-        fun (NextRef, {FAcc, CAcc, BLAcc}) ->
+        fun(NextRef, {FAcc, CAcc, BLAcc}) ->
             %% We iterate over adjacent nodes here, accumulating cycles and
             %% blocklist. If _any_ cycle is found in any subgraph then `Found`
             %% will become `true`.
@@ -264,15 +262,16 @@ track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Doma
         {false, Acc, Blocklist1},
         Refs
     ),
-    Blocklist3 = case Found of
-        true ->
-            %% We found a cycle. Great but now we have to unblock current node.
-            %% At this point it looks safe to assume that all of its ascendants
-            %% will be unblocked eventually while stack is unwinding.
-            unblock_node(Ref, Blocklist2);
-        false ->
-            Blocklist2
-    end,
+    Blocklist3 =
+        case Found of
+            true ->
+                %% We found a cycle. Great but now we have to unblock current node.
+                %% At this point it looks safe to assume that all of its ascendants
+                %% will be unblocked eventually while stack is unwinding.
+                unblock_node(Ref, Blocklist2);
+            false ->
+                Blocklist2
+        end,
     {Found, Acc1, Blocklist3}.
 
 track_edge(Ref, Ref, PathRev, _Found, Acc, Blocklist, _Domain) ->
@@ -336,11 +335,11 @@ references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when i
         {_, _, Type, _, _} ->
             check_reference_type(Object, Type, Refs)
     end;
-references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
+%% what if it's a union?
+references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) ->
     lists:foldl(
-        fun
-            ({I, {_, _Required, FieldType, _Name, _}}, Acc) ->
-                check_reference_type(element(I, Object), FieldType, Acc)
+        fun({I, {_, _Required, FieldType, _Name, _}}, Acc) ->
+            check_reference_type(element(I, Object), FieldType, Acc)
         end,
         Refs,
         mark_fields(FieldsInfo)
@@ -407,10 +406,8 @@ get_field_info(Field, {struct, _StructType, FieldsInfo}) ->
 
 get_field_index(Field, {struct, _StructType, FieldsInfo}) ->
     get_field_index(Field, mark_fields(FieldsInfo));
-
 get_field_index(_Field, []) ->
     false;
-
 get_field_index(Field, [F | Rest]) ->
     case F of
         {_, {_, _, _, Field, _}} = Index ->

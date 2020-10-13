@@ -1,5 +1,7 @@
 -module(dmt_domain_tests).
+
 -include_lib("eunit/include/eunit.hrl").
+
 -include("dmt_domain_tests_helper.hrl").
 
 -type testcase() :: {_, fun()}.
@@ -34,7 +36,10 @@ basic_flow_test_() ->
         ),
         ?_assertMatch(
             {ok, #{}},
-            dmt_domain:apply_operations([?remove(?dummy_link(1337, 42)), ?remove(?dummy(42)), ?remove(?dummy(44))], Fixture)
+            dmt_domain:apply_operations(
+                [?remove(?dummy_link(1337, 42)), ?remove(?dummy(42)), ?remove(?dummy(44))],
+                Fixture
+            )
         ),
         ?_assertEqual(
             {error, {conflict, {object_not_found, ?dummy_ref(1)}}},
@@ -141,25 +146,27 @@ nested_links_test() ->
     ).
 
 batch_link_test() ->
-    Sas = {system_account_set, #domain_SystemAccountSetObject{
-        ref = ?sas_ref(1),
-        data = #domain_SystemAccountSet{
-            name = <<"Primaries">>,
-            description = <<"Primaries">>,
-            accounts = #{
-                ?currency_ref(<<"USD">>) => #domain_SystemAccount{settlement = 424242}
+    Sas =
+        {system_account_set, #domain_SystemAccountSetObject{
+            ref = ?sas_ref(1),
+            data = #domain_SystemAccountSet{
+                name = <<"Primaries">>,
+                description = <<"Primaries">>,
+                accounts = #{
+                    ?currency_ref(<<"USD">>) => #domain_SystemAccount{settlement = 424242}
+                }
             }
-        }
-    }},
-    Currency = {currency, #domain_CurrencyObject{
-        ref = ?currency_ref(<<"USD">>),
-        data = #domain_Currency{
-            name = <<"US Dollars">>,
-            numeric_code = 840,
-            symbolic_code = <<"USD">>,
-            exponent = 2
-        }
-    }},
+        }},
+    Currency =
+        {currency, #domain_CurrencyObject{
+            ref = ?currency_ref(<<"USD">>),
+            data = #domain_Currency{
+                name = <<"US Dollars">>,
+                numeric_code = 840,
+                symbolic_code = <<"USD">>,
+                exponent = 2
+            }
+        }},
     ?assertMatch(
         {ok, #{}},
         dmt_domain:apply_operations([?insert(Sas), ?insert(Currency)], #{})
@@ -184,15 +191,16 @@ wrong_spec_order_test() ->
             }
         }
     },
-    Currency = {currency, #domain_CurrencyObject{
-        ref = ?currency_ref(<<"USD">>),
-        data = #domain_Currency{
-            name = <<"US Dollars">>,
-            numeric_code = 840,
-            symbolic_code = <<"USD">>,
-            exponent = 2
-        }
-    }},
+    Currency =
+        {currency, #domain_CurrencyObject{
+            ref = ?currency_ref(<<"USD">>),
+            data = #domain_Currency{
+                name = <<"US Dollars">>,
+                numeric_code = 840,
+                symbolic_code = <<"USD">>,
+                exponent = 2
+            }
+        }},
     PaymentMethod = {
         payment_method,
         #domain_PaymentMethodObject{
@@ -217,20 +225,26 @@ reference_cycle_test_() ->
     ID1 = 1,
     ID2 = 2,
     ID3 = 3,
-    Pred1 = {any_of, ?set([
-        {constant, true},
-        {condition, {category_is, ?category_ref(1)}},
-        {all_of, ?set([
-            {is_not, {criterion, ?criterion_ref(ID2)}}
-        ])}
-    ])},
-    Pred2 = {all_of, ?set([
-        {any_of, ?set([
-            {is_not, {condition, {shop_location_is, {url, <<"BLARG">>}}}},
-            {criterion, ?criterion_ref(ID3)},
-            {criterion, ?criterion_ref(ID1)}
-        ])}
-    ])},
+    Pred1 =
+        {any_of,
+            ?set([
+                {constant, true},
+                {condition, {category_is, ?category_ref(1)}},
+                {all_of,
+                    ?set([
+                        {is_not, {criterion, ?criterion_ref(ID2)}}
+                    ])}
+            ])},
+    Pred2 =
+        {all_of,
+            ?set([
+                {any_of,
+                    ?set([
+                        {is_not, {condition, {shop_location_is, {url, <<"BLARG">>}}}},
+                        {criterion, ?criterion_ref(ID3)},
+                        {criterion, ?criterion_ref(ID1)}
+                    ])}
+            ])},
     Pred3 = {is_not, {criterion, ?criterion_ref(ID1)}},
     [
         %%   ┌──┐
@@ -239,9 +253,11 @@ reference_cycle_test_() ->
         %% │  42  │
         %% └──────┘
         ?_assertEqual(
-            {error, {invalid, {object_reference_cycles, [
-                [{criterion, ?criterion_ref(IDSelf)}]
-            ]}}},
+            {error,
+                {invalid,
+                    {object_reference_cycles, [
+                        [{criterion, ?criterion_ref(IDSelf)}]
+                    ]}}},
             dmt_domain:apply_operations(
                 [?insert(?criterion(IDSelf, <<"Root">>, {criterion, ?criterion_ref(IDSelf)}))],
                 Fixture
@@ -362,16 +378,17 @@ reference_cycle_test_() ->
 
 random_reference_cycle_test_() ->
     N = 100,
-    E = round(N * 1.2), % conservative, bigger values may explode time complexity
+    % conservative, bigger values may explode time complexity
+    E = round(N * 1.2),
     Nodes = lists:seq(1, N),
     Nr = rand:uniform(N),
     Edges = lists:foldl(
-        fun ({U, V}, M) ->
-            maps:update_with(U, fun (As) -> [V | As] end, [V], M)
+        fun({U, V}, M) ->
+            maps:update_with(U, fun(As) -> [V | As] end, [V], M)
         end,
         #{},
-        [{Nr, Nr} | % ensure at least one cycle
-            [{rand:uniform(N), rand:uniform(N)} || _ <- lists:seq(1, E)]]
+        % ensure at least one cycle
+        [{Nr, Nr} | [{rand:uniform(N), rand:uniform(N)} || _ <- lists:seq(1, E)]]
     ),
     Criterions = [criterion_w_refs(ID, maps:get(ID, Edges, [])) || ID <- Nodes],
     ?_assertMatch(
@@ -384,18 +401,20 @@ complete_reference_cycle_test_() ->
         begin
             Nodes = lists:seq(1, N),
             Operations = [?insert(criterion_w_refs(ID, [ID1 || ID1 <- Nodes])) || ID <- Nodes],
-            {timeout, 10, ?_assertEqual(
-                %% Number of cycles in complete directed graph.
-                %% For each subset of K nodes there are (K-1)! cyclic permutations of this subset,
-                %% plus there are binom(N, K) different subsets for each K.
-                lists:sum([binom(N, K) * factorial(K - 1) || K <- lists:seq(1, N)]),
-                begin
-                    {error, {invalid, {object_reference_cycles, Cycles}}} =
-                        dmt_domain:apply_operations(Operations, dmt_domain:new()),
-                    length(Cycles)
-                end
-            )}
-        end || N <- lists:seq(1, 9)
+            {timeout, 10,
+                ?_assertEqual(
+                    %% Number of cycles in complete directed graph.
+                    %% For each subset of K nodes there are (K-1)! cyclic permutations of this subset,
+                    %% plus there are binom(N, K) different subsets for each K.
+                    lists:sum([binom(N, K) * factorial(K - 1) || K <- lists:seq(1, N)]),
+                    begin
+                        {error, {invalid, {object_reference_cycles, Cycles}}} =
+                            dmt_domain:apply_operations(Operations, dmt_domain:new()),
+                        length(Cycles)
+                    end
+                )}
+        end
+        || N <- lists:seq(1, 9)
     ].
 
 binom(N, K) ->
@@ -410,12 +429,15 @@ criterion_w_refs(ID, Refs) ->
 %%
 
 construct_fixture() ->
-    maps:from_list([{{Type, Ref}, Object} || Object = {Type, {_, Ref, _}} <- [
-        ?dummy(41),
-        ?dummy(42),
-        ?dummy(43),
-        ?dummy(44),
-        ?dummy_link(1337, 42),
-        ?dummy_link(1338, 43),
-        ?category(1, <<"testCategory">>, <<"testDescription">>)
-    ]]).
+    maps:from_list([
+        {{Type, Ref}, Object}
+        || Object = {Type, {_, Ref, _}} <- [
+               ?dummy(41),
+               ?dummy(42),
+               ?dummy(43),
+               ?dummy(44),
+               ?dummy_link(1337, 42),
+               ?dummy_link(1338, 43),
+               ?category(1, <<"testCategory">>, <<"testDescription">>)
+           ]
+    ]).
