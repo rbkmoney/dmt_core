@@ -383,10 +383,13 @@ references(Object, {set, FieldType}, Refs) ->
     ListObject = ordsets:to_list(Object),
     check_reference_type(ListObject, {list, FieldType}, Refs);
 references(Object, {map, KeyType, ValueType}, Refs) ->
-    check_reference_type(
-        maps:values(Object),
-        {list, ValueType},
-        check_reference_type(maps:keys(Object), {list, KeyType}, Refs)
+    maps:fold(
+        fun(K, V, Acc) ->
+            check_reference_type(V, ValueType,
+                check_reference_type(K, KeyType, Acc))
+        end,
+        Refs,
+        Object
     );
 references(_DomainObject, _Primitive, Refs) ->
     Refs.
