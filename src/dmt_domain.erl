@@ -154,8 +154,8 @@ integrity_check(Domain, Touched) when is_list(Touched) ->
     % Well I guess nothing (but the types) stops us from accumulating
     % errors from every check, instead of just first failed
     run_until_error([
-        fun() -> verify_integrity(Domain, Touched, []) end,
-        fun() -> verify_acyclicity(Domain, Touched, {[], #{}}) end
+        fun () -> verify_integrity(Domain, Touched) end,
+        fun () -> verify_acyclicity(Domain, Touched, {[], #{}}) end
     ]).
 
 run_until_error([CheckFun | Rest]) ->
@@ -168,16 +168,31 @@ run_until_error([CheckFun | Rest]) ->
 run_until_error([]) ->
     ok.
 
-verify_integrity(_Domain, [], []) ->
-    ok;
-verify_integrity(_Domain, [], ObjectsNotExist) ->
-    {error, {objects_not_exist, ObjectsNotExist}};
-verify_integrity(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
-    ObjectsNotExist = check_correct_refs(Object, Domain),
-    verify_integrity(Domain, Rest, Acc ++ ObjectsNotExist);
-verify_integrity(Domain, [{remove, Object} | Rest], Acc) ->
-    ObjectsNotExist = check_no_refs(Object, Domain),
-    verify_integrity(Domain, Rest, Acc ++ ObjectsNotExist).
+verify_integrity(Domain, Touched) ->
+    ObjectsNotExist1 = verify_forward_integrity(Domain, Touched, []),
+    ObjectsNotExist2 = verify_backward_integrity(Domain, Touched, ObjectsNotExist1),
+    case ObjectsNotExist2 of
+        [] ->
+            ok;
+        [_ | _] ->
+            {error, {objects_not_exist, ObjectsNotExist2}}
+    end.
+
+verify_forward_integrity(Domain, Ops, ObjectsNotExistAcc) ->
+    lists:foldl(
+        fun
+            ({Op, Object}, Acc) when Op == insert; Op == update ->
+                Acc ++ check_correct_refs(Object, Domain);
+            (_, Acc) ->
+                Acc
+        end,
+        ObjectsNotExistAcc,
+        Ops
+    ).
+
+verify_backward_integrity(Domain, Ops, ObjectsNotExistAcc) ->
+    RemovedRefs = [get_ref(Object) || {remove, Object} <- Ops],
+    ObjectsNotExistAcc ++ check_no_refs(RemovedRefs, Domain).
 
 verify_acyclicity(_Domain, [], {[], _}) ->
     ok;
@@ -207,12 +222,12 @@ object_exists(Ref, Domain) ->
             false
     end.
 
-check_no_refs(DomainObject, Domain) ->
-    case referenced_by(DomainObject, Domain) of
+check_no_refs(Refs, Domain) ->
+    case maps:to_list(referenced_by(Refs, Domain)) of
         [] ->
             [];
-        Referenced ->
-            [{get_ref(DomainObject), Referenced}]
+        ReferencedBy ->
+            ReferencedBy
     end.
 
 track_cycles_from(Ref, Object, {Acc, Blocklist}, Domain) ->
@@ -306,18 +321,24 @@ is_blocked(Ref, Blocklist) ->
 unblock_node(Ref, Blocklist) ->
     maps:remove(Ref, Blocklist).
 
-referenced_by(DomainObject, Domain) ->
-    Ref = get_ref(DomainObject),
+referenced_by(Refs, Domain) ->
+    RefSet = ordsets:from_list(Refs),
     maps:fold(
-        fun(_K, V, Acc) ->
-            case lists:member(Ref, references(V)) of
-                true -> [get_ref(V) | Acc];
-                false -> Acc
-            end
+        fun(K, V, Acc0) ->
+            OutRefSet = ordsets:from_list(references(V)),
+            Intersection = ordsets:intersection(RefSet, OutRefSet),
+            ordsets:fold(
+                fun (Ref, Acc) -> map_append(Ref, K, Acc) end,
+                Acc0,
+                Intersection
+            )
         end,
-        [],
+        #{},
         Domain
     ).
+
+map_append(K, V, M) ->
+    maps:put(K, [V | maps:get(K, M, [])], M).
 
 references(DomainObject) ->
     {DataType, Data} = get_data(DomainObject),
