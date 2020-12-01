@@ -154,8 +154,8 @@ integrity_check(Domain, Touched) when is_list(Touched) ->
     % Well I guess nothing (but the types) stops us from accumulating
     % errors from every check, instead of just first failed
     run_until_error([
-        fun () -> verify_integrity(Domain, Touched) end,
-        fun () -> verify_acyclicity(Domain, Touched, {[], #{}}) end
+        fun() -> verify_integrity(Domain, Touched) end,
+        fun() -> verify_acyclicity(Domain, Touched, {[], #{}}) end
     ]).
 
 run_until_error([CheckFun | Rest]) ->
@@ -328,7 +328,7 @@ referenced_by(Refs, Domain) ->
             OutRefSet = ordsets:from_list(references(V)),
             Intersection = ordsets:intersection(RefSet, OutRefSet),
             ordsets:fold(
-                fun (Ref, Acc) -> map_append(Ref, K, Acc) end,
+                fun(Ref, Acc) -> map_append(Ref, K, Acc) end,
                 Acc0,
                 Intersection
             )
