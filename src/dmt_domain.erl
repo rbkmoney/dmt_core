@@ -358,16 +358,16 @@ references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when i
         {_, _, Type, _, _} ->
             check_reference_type(Object, Type, Refs)
     end;
-references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
+%% what if it's a union?
+references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) ->
     indexfold(
-        fun
-            (I, {_, _Required, FieldType, _Name, _}, Acc) ->
-                case element(I, Object) of
-                    undefined ->
-                        Acc;
-                    Field ->
-                        check_reference_type(Field, FieldType, Acc)
-                end
+        fun(I, {_, _Required, FieldType, _Name, _}, Acc) ->
+            case element(I, Object) of
+                undefined ->
+                    Acc;
+                Field ->
+                    check_reference_type(Field, FieldType, Acc)
+            end
         end,
         Refs,
         % NOTE
@@ -392,8 +392,11 @@ references(Object, {set, FieldType}, Refs) ->
 references(Object, {map, KeyType, ValueType}, Refs) ->
     maps:fold(
         fun(K, V, Acc) ->
-            check_reference_type(V, ValueType,
-                check_reference_type(K, KeyType, Acc))
+            check_reference_type(
+                V,
+                ValueType,
+                check_reference_type(K, KeyType, Acc)
+            )
         end,
         Refs,
         Object
@@ -448,7 +451,6 @@ get_field_index(Field, {struct, _StructType, FieldsInfo}) ->
 
 get_field_index(_Field, _, []) ->
     false;
-
 get_field_index(Field, I, [F | Rest]) ->
     case F of
         {_, _, _, Field, _} = Info ->

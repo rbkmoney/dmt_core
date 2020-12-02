@@ -6,10 +6,10 @@
     Forms :: [erl_parse:abstract_form() | erl_parse:form_info()].
 parse_transform(Forms, _Options) ->
     [
-        erl_syntax:revert(FormNext) ||
-            Form <- Forms,
-                FormNext <- [erl_syntax_lib:map(fun transform/1, Form)],
-                    FormNext /= delete
+        erl_syntax:revert(FormNext)
+        || Form <- Forms,
+           FormNext <- [erl_syntax_lib:map(fun transform/1, Form)],
+           FormNext /= delete
     ].
 
 transform(Form) ->
@@ -32,21 +32,24 @@ transform_function(Name = is_reference_type, 1, FormWas) ->
     % is_reference_type(_) -> false.
     % ```
     {struct, union, StructInfo} = get_struct_info('Reference'),
-    Clauses = [
-        erl_syntax:clause(
-            [erl_syntax:abstract(Type)],
-            none,
-            [erl_syntax:abstract({true, Tag})]
-        ) || {_N, _Req, Type, Tag, _Default} <- StructInfo
-    ] ++ [
-        erl_syntax:clause(
-            [erl_syntax:underscore()],
-            none,
-            [erl_syntax:abstract(false)]
-        )
-    ],
+    Clauses =
+        [
+            erl_syntax:clause(
+                [erl_syntax:abstract(Type)],
+                none,
+                [erl_syntax:abstract({true, Tag})]
+            )
+            || {_N, _Req, Type, Tag, _Default} <- StructInfo
+        ] ++
+            [
+                erl_syntax:clause(
+                    [erl_syntax:underscore()],
+                    none,
+                    [erl_syntax:abstract(false)]
+                )
+            ],
     Form = erl_syntax_lib:map(
-        fun (F) -> erl_syntax:copy_attrs(FormWas, F) end,
+        fun(F) -> erl_syntax:copy_attrs(FormWas, F) end,
         erl_syntax:function(
             erl_syntax:abstract(Name),
             Clauses
