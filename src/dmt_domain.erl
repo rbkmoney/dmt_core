@@ -360,7 +360,12 @@ references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) 
     indexfold(
         fun
             (I, {_, _Required, FieldType, _Name, _}, Acc) ->
-                check_reference_type(element(I, Object), FieldType, Acc)
+                case element(I, Object) of
+                    undefined ->
+                        Acc;
+                    Field ->
+                        check_reference_type(Field, FieldType, Acc)
+                end
         end,
         Refs,
         % NOTE
@@ -399,8 +404,6 @@ indexfold(Fun, Acc, I, [E | Rest]) ->
 indexfold(_Fun, Acc, _I, []) ->
     Acc.
 
-check_reference_type(undefined, _, Refs) ->
-    Refs;
 check_reference_type(Object, Type, Refs) ->
     case is_reference_type(Type) of
         {true, Tag} ->
