@@ -2,6 +2,8 @@
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
+-compile({parse_transform, dmt_domain_pt}).
+
 %%
 
 -export([new/0]).
@@ -153,10 +155,9 @@ integrity_check(Domain, Touched) when is_list(Touched) ->
     % TODO
     % Well I guess nothing (but the types) stops us from accumulating
     % errors from every check, instead of just first failed
-    Mapping = mk_reference_type_mapping(),
     run_until_error([
-        fun() -> verify_integrity(Domain, Touched, Mapping) end,
-        fun() -> verify_acyclicity(Domain, Touched, {[], #{}}, Mapping) end
+        fun() -> verify_integrity(Domain, Touched) end,
+        fun() -> verify_acyclicity(Domain, Touched, {[], #{}}) end
     ]).
 
 run_until_error([CheckFun | Rest]) ->
@@ -169,9 +170,9 @@ run_until_error([CheckFun | Rest]) ->
 run_until_error([]) ->
     ok.
 
-verify_integrity(Domain, Touched, Mapping) ->
-    ObjectsNotExist1 = verify_forward_integrity(Domain, Touched, [], Mapping),
-    ObjectsNotExist2 = verify_backward_integrity(Domain, Touched, ObjectsNotExist1, Mapping),
+verify_integrity(Domain, Touched) ->
+    ObjectsNotExist1 = verify_forward_integrity(Domain, Touched, []),
+    ObjectsNotExist2 = verify_backward_integrity(Domain, Touched, ObjectsNotExist1),
     case ObjectsNotExist2 of
         [] ->
             ok;
@@ -179,11 +180,11 @@ verify_integrity(Domain, Touched, Mapping) ->
             {error, {objects_not_exist, ObjectsNotExist2}}
     end.
 
-verify_forward_integrity(Domain, Ops, ObjectsNotExistAcc, Mapping) ->
+verify_forward_integrity(Domain, Ops, ObjectsNotExistAcc) ->
     lists:foldl(
         fun
             ({Op, Object}, Acc) when Op == insert; Op == update ->
-                Acc ++ check_correct_refs(Object, Domain, Mapping);
+                Acc ++ check_correct_refs(Object, Domain);
             (_, Acc) ->
                 Acc
         end,
@@ -191,26 +192,26 @@ verify_forward_integrity(Domain, Ops, ObjectsNotExistAcc, Mapping) ->
         Ops
     ).
 
-verify_backward_integrity(Domain, Ops, ObjectsNotExistAcc, Mapping) ->
+verify_backward_integrity(Domain, Ops, ObjectsNotExistAcc) ->
     RemovedRefs = [get_ref(Object) || {remove, Object} <- Ops],
-    ObjectsNotExistAcc ++ check_no_refs(RemovedRefs, Domain, Mapping).
+    ObjectsNotExistAcc ++ check_no_refs(RemovedRefs, Domain).
 
-verify_acyclicity(_Domain, [], {[], _}, _) ->
+verify_acyclicity(_Domain, [], {[], _}) ->
     ok;
-verify_acyclicity(_Domain, [], {Cycles, _}, _) ->
+verify_acyclicity(_Domain, [], {Cycles, _}) ->
     {error, {object_reference_cycles, Cycles}};
-verify_acyclicity(Domain, [{Op, Object} | Rest], Acc, Mapping) when Op == insert; Op == update ->
-    Acc1 = track_cycles_from(get_ref(Object), Object, Acc, Domain, Mapping),
-    verify_acyclicity(Domain, Rest, Acc1, Mapping);
-verify_acyclicity(Domain, [{remove, _} | Rest], Acc, Mapping) ->
-    verify_acyclicity(Domain, Rest, Acc, Mapping).
+verify_acyclicity(Domain, [{Op, Object} | Rest], Acc) when Op == insert; Op == update ->
+    Acc1 = track_cycles_from(get_ref(Object), Object, Acc, Domain),
+    verify_acyclicity(Domain, Rest, Acc1);
+verify_acyclicity(Domain, [{remove, _} | Rest], Acc) ->
+    verify_acyclicity(Domain, Rest, Acc).
 
-check_correct_refs(DomainObject, Domain, Mapping) ->
+check_correct_refs(DomainObject, Domain) ->
     NonExistent = lists:filter(
         fun(E) ->
             not object_exists(E, Domain)
         end,
-        references(DomainObject, Mapping)
+        references(DomainObject)
     ),
     Ref = get_ref(DomainObject),
     lists:map(fun(X) -> {X, [Ref]} end, NonExistent).
@@ -223,15 +224,15 @@ object_exists(Ref, Domain) ->
             false
     end.
 
-check_no_refs(Refs, Domain, Mapping) ->
-    case maps:to_list(referenced_by(Refs, Domain, Mapping)) of
+check_no_refs(Refs, Domain) ->
+    case maps:to_list(referenced_by(Refs, Domain)) of
         [] ->
             [];
         ReferencedBy ->
             ReferencedBy
     end.
 
-track_cycles_from(Ref, Object, {Acc, Blocklist}, Domain, Mapping) ->
+track_cycles_from(Ref, Object, {Acc, Blocklist}, Domain) ->
     %% NOTE
     %%
     %% This is an implementation of [Johnson's algorithm for enumerating
@@ -257,14 +258,14 @@ track_cycles_from(Ref, Object, {Acc, Blocklist}, Domain, Mapping) ->
     %% graph, and no operation introducing a cycle could succeed.
     %%
     %% [1]: https://www.cs.tufts.edu/comp/150GA/homeworks/hw1/Johnson%2075.PDF
-    {_Found, Acc1, _Blocklist} = track_cycles_over(Object, Ref, [Ref], Acc, Blocklist, Domain, Mapping),
+    {_Found, Acc1, _Blocklist} = track_cycles_over(Object, Ref, [Ref], Acc, Blocklist, Domain),
     {Acc1, block_node(Ref, Blocklist)}.
 
-track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Domain, Mapping) ->
+track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Domain) ->
     %% NOTE
     %% Returns _all_ cycles passing through the node `Pivot`.
     %% This is essentially CIRCUIT(v) routine from the [paper][1].
-    Refs = references(DomainObject, Mapping),
+    Refs = references(DomainObject),
     %% We begin by blocking current node so that any search passing through
     %% this node (but not through `Pivot`) would terminate prematurely.
     Blocklist1 = block_node(Ref, Blocklist),
@@ -273,7 +274,7 @@ track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Doma
             %% We iterate over adjacent nodes here, accumulating cycles and
             %% blocklist. If _any_ cycle is found in any subgraph then `Found`
             %% will become `true`.
-            track_edge(NextRef, Pivot, PathRev, FAcc, CAcc, BLAcc, Domain, Mapping)
+            track_edge(NextRef, Pivot, PathRev, FAcc, CAcc, BLAcc, Domain)
         end,
         {false, Acc, Blocklist1},
         Refs
@@ -290,12 +291,12 @@ track_cycles_over(DomainObject, Pivot, [Ref | _] = PathRev, Acc, Blocklist, Doma
         end,
     {Found, Acc1, Blocklist3}.
 
-track_edge(Ref, Ref, PathRev, _Found, Acc, Blocklist, _Domain, _Mapping) ->
+track_edge(Ref, Ref, PathRev, _Found, Acc, Blocklist, _Domain) ->
     % We found a cycle passing through `Pivot`.
     % That means we must return with `true` to a caller.
     Acc1 = [lists:reverse(PathRev) | Acc],
     {true, Acc1, Blocklist};
-track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain, Mapping) ->
+track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain) ->
     case is_blocked(Ref, Blocklist) of
         true ->
             % Node is blocked.
@@ -307,7 +308,7 @@ track_edge(Ref, Pivot, PathRev, Found, Acc, Blocklist, Domain, Mapping) ->
             % First time here.
             case get_object(Ref, Domain) of
                 {ok, Object} ->
-                    track_cycles_over(Object, Pivot, [Ref | PathRev], Acc, Blocklist, Domain, Mapping);
+                    track_cycles_over(Object, Pivot, [Ref | PathRev], Acc, Blocklist, Domain);
                 error ->
                     {Found, Acc, Blocklist}
             end
@@ -322,11 +323,11 @@ is_blocked(Ref, Blocklist) ->
 unblock_node(Ref, Blocklist) ->
     maps:remove(Ref, Blocklist).
 
-referenced_by(Refs, Domain, Mapping) ->
+referenced_by(Refs, Domain) ->
     RefSet = ordsets:from_list(Refs),
     maps:fold(
         fun(K, V, Acc0) ->
-            OutRefSet = ordsets:from_list(references(V, Mapping)),
+            OutRefSet = ordsets:from_list(references(V)),
             Intersection = ordsets:intersection(RefSet, OutRefSet),
             ordsets:fold(
                 fun(Ref, Acc) -> map_append(Ref, K, Acc) end,
@@ -341,23 +342,23 @@ referenced_by(Refs, Domain, Mapping) ->
 map_append(K, V, M) ->
     maps:put(K, [V | maps:get(K, M, [])], M).
 
-references(DomainObject, Mapping) ->
+references(DomainObject) ->
     {DataType, Data} = get_data(DomainObject),
-    references(Data, DataType, Mapping).
+    references(Data, DataType).
 
-references(Object, DataType, Mapping) ->
-    references(Object, DataType, [], Mapping).
+references(Object, DataType) ->
+    references(Object, DataType, []).
 
-references(undefined, _StructInfo, Refs, _) ->
+references(undefined, _StructInfo, Refs) ->
     Refs;
-references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs, Mapping) when is_list(FieldsInfo) ->
+references({Tag, Object}, StructInfo = {struct, union, FieldsInfo}, Refs) when is_list(FieldsInfo) ->
     case get_field_info(Tag, StructInfo) of
         false ->
             erlang:error({<<"field info not found">>, Tag, StructInfo});
         {_, _, Type, _, _} ->
-            check_reference_type(Object, Type, Refs, Mapping)
+            check_reference_type(Object, Type, Refs)
     end;
-references(Object, {struct, struct, FieldsInfo}, Refs, Mapping) when is_list(FieldsInfo) -> %% what if it's a union?
+references(Object, {struct, struct, FieldsInfo}, Refs) when is_list(FieldsInfo) -> %% what if it's a union?
     indexfold(
         fun
             (I, {_, _Required, FieldType, _Name, _}, Acc) ->
@@ -365,7 +366,7 @@ references(Object, {struct, struct, FieldsInfo}, Refs, Mapping) when is_list(Fie
                     undefined ->
                         Acc;
                     Field ->
-                        check_reference_type(Field, FieldType, Acc, Mapping)
+                        check_reference_type(Field, FieldType, Acc)
                 end
         end,
         Refs,
@@ -374,30 +375,30 @@ references(Object, {struct, struct, FieldsInfo}, Refs, Mapping) when is_list(Fie
         2,
         FieldsInfo
     );
-references(Object, {struct, _, {?DOMAIN, StructName}}, Refs, Mapping) ->
+references(Object, {struct, _, {?DOMAIN, StructName}}, Refs) ->
     StructInfo = get_struct_info(StructName),
-    check_reference_type(Object, StructInfo, Refs, Mapping);
-references(Object, {list, FieldType}, Refs, Mapping) ->
+    check_reference_type(Object, StructInfo, Refs);
+references(Object, {list, FieldType}, Refs) ->
     lists:foldl(
         fun(O, Acc) ->
-            check_reference_type(O, FieldType, Acc, Mapping)
+            check_reference_type(O, FieldType, Acc)
         end,
         Refs,
         Object
     );
-references(Object, {set, FieldType}, Refs, Mapping) ->
+references(Object, {set, FieldType}, Refs) ->
     ListObject = ordsets:to_list(Object),
-    check_reference_type(ListObject, {list, FieldType}, Refs, Mapping);
-references(Object, {map, KeyType, ValueType}, Refs, Mapping) ->
+    check_reference_type(ListObject, {list, FieldType}, Refs);
+references(Object, {map, KeyType, ValueType}, Refs) ->
     maps:fold(
         fun(K, V, Acc) ->
             check_reference_type(V, ValueType,
-                check_reference_type(K, KeyType, Acc, Mapping), Mapping)
+                check_reference_type(K, KeyType, Acc))
         end,
         Refs,
         Object
     );
-references(_DomainObject, _Primitive, Refs, _) ->
+references(_DomainObject, _Primitive, Refs) ->
     Refs.
 
 indexfold(Fun, Acc, I, [E | Rest]) ->
@@ -405,12 +406,12 @@ indexfold(Fun, Acc, I, [E | Rest]) ->
 indexfold(_Fun, Acc, _I, []) ->
     Acc.
 
-check_reference_type(Object, Type, Refs, Mapping) ->
-    case is_reference_type(Type, Mapping) of
+check_reference_type(Object, Type, Refs) ->
+    case is_reference_type(Type) of
         {true, Tag} ->
             [{Tag, Object} | Refs];
         false ->
-            references(Object, Type, Refs, Mapping)
+            references(Object, Type, Refs)
     end.
 
 -spec get_ref(domain_object()) -> object_ref().
@@ -456,12 +457,16 @@ get_field_index(Field, I, [F | Rest]) ->
             get_field_index(Field, I + 1, Rest)
     end.
 
-is_reference_type(Type, Mapping) ->
-    maps:get(Type, Mapping, false).
-
-mk_reference_type_mapping() ->
+is_reference_type(Type) ->
     {struct, union, StructInfo} = get_struct_info('Reference'),
-    maps:from_list([{Tp, {true, Tag}} || {_, _, Tp, Tag, _} <- StructInfo]).
+    is_reference_type(Type, StructInfo).
+
+is_reference_type(_Type, []) ->
+    false;
+is_reference_type(Type, [{_, _, Type, Tag, _} | _Rest]) ->
+    {true, Tag};
+is_reference_type(Type, [_ | Rest]) ->
+    is_reference_type(Type, Rest).
 
 invert_operation({insert, #'InsertOp'{object = Object}}) ->
     {remove, #'RemoveOp'{object = Object}};
