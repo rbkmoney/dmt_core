@@ -1,6 +1,6 @@
 [{<<"damsel">>,
   {git,"https://github.com/rbkmoney/damsel.git",
-       {ref,"500c2356fdf2c989556cf1e7f5fc5c8529bd1e3f"}},
+       {ref,"e3974a5e416169bc9d6e5d69fbff72b36ef8e677"}},
   0},
  {<<"genlib">>,
   {git,"https://github.com/rbkmoney/genlib.git",

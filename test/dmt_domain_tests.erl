@@ -183,10 +183,12 @@ wrong_spec_order_test() ->
                 options = #{
                     <<"override">> => <<"Terminal 1">>
                 },
-                terms = #domain_PaymentsProvisionTerms{
-                    categories = {value, [?category_ref(1)]},
-                    payment_methods = {value, [#domain_PaymentMethodRef{id = {bank_card, visa}}]},
-                    cash_flow = {value, []}
+                terms = #domain_ProvisionTermSet{
+                    payments = #domain_PaymentsProvisionTerms{
+                        categories = {value, [?category_ref(1)]},
+                        payment_methods = {value, [#domain_PaymentMethodRef{id = {bank_card, visa}}]},
+                        cash_flow = {value, []}
+                    }
                 }
             }
         }
