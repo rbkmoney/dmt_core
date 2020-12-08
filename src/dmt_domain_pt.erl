@@ -32,6 +32,7 @@ transform_function(Name = is_reference_type, 1, FormWas) ->
     % is_reference_type(_) -> false.
     % ```
     {struct, union, StructInfo} = get_struct_info('Reference'),
+    ok = validate_reference_struct('Reference', StructInfo),
     Clauses =
         [
             erl_syntax:clause(
@@ -66,3 +67,26 @@ transform_function(_, _, Form) ->
 
 get_struct_info(StructName) ->
     dmsl_domain_thrift:struct_info(StructName).
+
+validate_reference_struct(StructName, StructInfo) ->
+    Mappings = lists:foldl(
+        fun ({N, _Req, Type, Tag, _Default}, Acc) ->
+            maps:put(Type, [{N, Tag} | maps:get(Type, Acc, [])], Acc)
+        end,
+        #{},
+        StructInfo
+    ),
+    case maps:filter(fun (_, Tags) -> length(Tags) > 1 end, Mappings) of
+        Dups when map_size(Dups) > 0 ->
+            ErrorMessage = format(
+                "struct_info(~0p): multiple fields share the same reference type, "
+                "this breaks referential integrity validation",
+                [StructName]
+            ),
+            exit({ErrorMessage, Dups});
+        _ ->
+            ok
+    end.
+
+format(Fmt, Args) ->
+    unicode:characters_to_nfc_list(io_lib:format(Fmt, Args)).
